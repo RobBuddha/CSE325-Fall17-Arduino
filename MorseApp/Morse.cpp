@@ -41,6 +41,10 @@ void Morse::stringGen(String morse)
 {
   for (int i = 0; i < morse.length(); i++) {
     char ch = morse.charAt(i);
+    //String has ended, return function
+    if(ch == '.'){
+	return;
+    }
     charGen(ch);
     if (ch != ' ') {
       lspace();
