@@ -37,17 +37,17 @@ void Morse::wspace()
   delay(750);
 }
   
-void Morse::stringGen(String morse)
+void Morse::stringGen(String str)
 {
-  for (int i = 0; i < morse.length(); i++) {
-    char ch = morse.charAt(i);
-    //String has ended, return function
-    if(ch == '.'){
-	return;
+  // Loop over each character of the string
+  for (int i = 0; i < str.length(); i++) {
+    char ch = str.charAt(i); // Store the value of the current character
+    if (ch == '.'){
+	    return; // If current character is a period, end morse code translation
     }
-    charGen(ch);
+    charGen(ch); // Output morse for the current character
     if (ch != ' ') {
-      lspace();
+      lspace(); // If the current character is not a space, do a letter space delay
     }
   }
 }
@@ -287,5 +287,6 @@ void Morse::charGen(char ch)
       break;
     case ' ' :
       wspace();
+      break;
   }
 }

@@ -1,19 +1,18 @@
 #include "Morse.h"
-#define morseString  "AB CD"
+#define morseString  "Erin Hintze"
 #define morsePin 13
 
 Morse morse(morsePin);
 
 void setup() 
 {
-//  put your setup code here, to run once:
+  // No setup
 }
 
 
 void loop() 
 {
-//  put your main code here, to run repeatedly:
-  delay(1000);
+  delay(2000);
   morse.stringGen(morseString);
 }
 
