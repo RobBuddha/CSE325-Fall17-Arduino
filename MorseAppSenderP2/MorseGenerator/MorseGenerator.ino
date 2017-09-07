@@ -1,9 +1,9 @@
 
-#include "Morse.h"
+#include "MorseGenerator.h"
 #define morseString  "HELLO WORLD"
 #define morsePin 13
 
-Morse morse(morsePin);
+MorseGenerator morse(morsePin);
 
 void setup()
 {

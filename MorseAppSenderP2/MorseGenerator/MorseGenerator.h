@@ -4,18 +4,18 @@
  #ifndef Morse_h
  #define Morse_h
  #include "Arduino.h"
- class Morse
+ class MorseGenerator
  {
   public:
-  Morse(int pin);
+  MorseGenerator(int pin);
   void dot();
   void dash();
   void lspace();
   void wspace();
-  void lettergen(char);
-  void generate(String morse);
+  void charGen(char);
+  void stringGen(String morse);
   private:
-    int _pin;
+    int _morsePin;
       };
 
 
