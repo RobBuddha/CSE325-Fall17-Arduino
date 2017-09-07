@@ -1,6 +1,6 @@
 
 #include "MorseGenerator.h"
-#define morseString  "HELLO WORLD"
+#define morseString  "abcdefghijklmnopqrstuvwxyz."
 #define morsePin 13
 
 MorseGenerator morse(morsePin);
@@ -13,6 +13,7 @@ void setup()
 
 void loop()
 {
-  // call morse generator here
+  delay(2000);
+  morse.stringGen(morseString);
 }
 
