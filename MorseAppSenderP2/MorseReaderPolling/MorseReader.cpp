@@ -120,7 +120,7 @@ void MorseReader::convert_morse(String str)
     Serial.print("0");
     }
 
-  str = "";
+  ch = "";
 }
 
 void MorseReader::readByPolling()
@@ -128,24 +128,27 @@ void MorseReader::readByPolling()
   button_s = digitalRead(buttonPin);
 
   if (button_s == HIGH && last_b_s == LOW) {
-    // Dot/Dash, Letter, or Word space happened
-    unsigned int time = millis(); // log the time when the state changed
+    
+    // Dot/Dash space, Letter space, or Word space happened
+    unsigned int time = millis();
     int duration = time - last_time;
-
-    if (duration > 650 && duration < 850) {
+  
+    if (duration > 700 && duration < 800) {
       // Letter Space
       convert_morse(ch);
-    } else if (duration > 900 && duration < 1100) {
+    } else if (duration > 950 && duration < 1050) {
       // Word Space
+      convert_morse(ch);
       Serial.print(" ");
     }
-
     last_time = time;
+    
   } else if (button_s == LOW && last_b_s == HIGH) {
+    
     // Dot or Dash happened
     unsigned int time = millis();
     int duration = time - last_time;
-
+    
     if (duration > 150 && duration < 350) {
       // Dot
       ch += ".";
@@ -153,10 +156,21 @@ void MorseReader::readByPolling()
       // Dash
       ch += "-";
     }
+    last_time = time;
     
-    last_time = time; // log the time when the state changed
+  } else if (button_s == LOW && last_b_s == LOW) {
+    
+    // End of sentence happened
+    unsigned int time = millis();
+    int duration = time - last_time;
+    
+    if (duration > 1050 && ch != "") {
+      convert_morse(ch);
+      Serial.print(". ");
+    }
+    
   }
-
+  
   last_b_s = button_s;
 }
 

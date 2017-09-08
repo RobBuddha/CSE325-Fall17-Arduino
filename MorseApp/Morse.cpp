@@ -34,7 +34,7 @@ void Morse::lspace()
 
 void Morse::wspace()
 {
-  delay(750);
+  delay(250);
 }
   
 void Morse::stringGen(String str)

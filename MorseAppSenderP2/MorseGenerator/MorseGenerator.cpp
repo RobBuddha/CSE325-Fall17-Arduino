@@ -1,16 +1,14 @@
 /*
-  Morse.cpp For using the class
+  MorseGenerator.cpp For using the class
 */
 
 #include "Arduino.h"
 #include "MorseGenerator.h"
 
-int _morsePin;
-
 MorseGenerator::MorseGenerator(int morsePin)
 {
   _morsePin = morsePin;
-   pinMode(_morsePin, OUTPUT);
+  pinMode(_morsePin, OUTPUT);
 }
 
 void MorseGenerator::dot()
@@ -36,7 +34,7 @@ void MorseGenerator::lspace()
 
 void MorseGenerator::wspace()
 {
-  delay(750);
+  delay(250);
 }
   
 void MorseGenerator::stringGen(String str)

@@ -9,7 +9,6 @@ class MorseReader
     void convert_morse(String str); //The procedure to convert the morse code to the letters
     
   private:
-    int             system_s = 0;           // state of the reading process
     int             button_s = LOW;         // current state of the button
     int             last_b_s = LOW;         // previous state of the button
     unsigned long   x = 0;                  // rising time 
