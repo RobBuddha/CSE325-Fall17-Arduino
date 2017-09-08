@@ -43,6 +43,7 @@ void MorseGenerator::stringGen(String str)
   for (int i = 0; i < str.length(); i++) {
     char ch = str.charAt(i); // Store the value of the current character
     if (ch == '.'){
+      digitalWrite(_morsePin, HIGH);zz
       return; // If current character is a period, end morse code translation
     }
     charGen(ch); // Output morse for the current character
