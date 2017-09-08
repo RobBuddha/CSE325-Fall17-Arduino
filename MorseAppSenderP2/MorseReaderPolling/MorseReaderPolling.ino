@@ -1,16 +1,12 @@
 #include "MorseReader.h"
-#define morsePort 2
+#define morsePin 2
 
+MorseReader reader(morsePin);
 
 void setup() {
   Serial.begin(9600);
 }
 
 void loop() {
-
-  //Calling the morse converter by Polling
-
+  reader.readByPolling();
 }
-
-
-
