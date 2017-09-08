@@ -7,10 +7,10 @@ volatile bool checkVal;
 
 void setup() {
   // put your setup code here, to run once:
-  Serial.begin(2000000);
+  Serial.begin(9600);
   pinMode(morsePin, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(morsePin), morseISR, CHANGE);
-  Serial.print(F("Setup Done"));
+  Serial.print(F("Setup Done\n"));
 }
 
 void loop() {

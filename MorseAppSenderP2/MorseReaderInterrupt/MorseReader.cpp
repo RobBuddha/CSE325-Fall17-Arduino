@@ -126,11 +126,12 @@ void MorseReader::convert_morse(String str)
     Serial.print("0");
     }
 
-  str = "";
+  ch = "";
 }
 
 void MorseReader::Read_by_interrupt(int value)
 {
+  
   button_s = value;
   curTime = millis();
   dif = curTime - lastChange;
@@ -138,72 +139,20 @@ void MorseReader::Read_by_interrupt(int value)
   if(button_s == HIGH && last_b_s == LOW){
     if(dif > 745 && dif < 755){
       //Letter space
-      Serial.print(ch);
       convert_morse(ch);
-      Serial.print("\n");
-      ch = "";
     } else if(dif > 995 && dif < 1005){
       convert_morse(ch);
       Serial.print(" ");
-      Serial.print("space\n");
-      ch = "";
     }
   } else if(button_s == LOW && last_b_s == HIGH){
-    Serial.print(dif);
-    Serial.print('\n');
     if(dif > 245 && dif < 255){
       ch += '.';
     } else if(dif > 745 && dif < 755){
       ch += '-';
+    } else {
+      convert_morse(ch);
     }
   }
   lastChange = curTime;
   last_b_s = button_s;
-  /*
-   * 
-   * 
-   * if(value != 0){
-    Serial.print(dif);
-    Serial.print('\n');
-  }
-  if(value == 0 && dif > 745 && dif < 755){
-    Serial.print("letter space\n");
-  } else if(value == 0 && dif > 1495 && dif < 1505){
-    Serial.print("word space\n");
-  } else if(value == 1 && dif > 245 && dif < 255){
-    Serial.print("dot\n");
-  } else if(value == 1 && dif > 745 && dif < 755){
-    Serial.print("dash\n");
-  }
-   * 
-   * 
-   * 
-  curTime = millis();
-  dif = curTime - lastChange;
-  
-  if(value == 0 && dif > 745 && dif < 755){
-    Serial.print(ch);
-    lastChange = curTime;
-    convert_morse(ch);
-    ch = "";
-    //return;
-  } else if(dif > 245 && dif < 255 && !lastSpaceChar){
-    //Serial.print("dot\n");
-    ch += ".";
-    //lastSpaceChar = false;
-  } else if(dif > 745 && dif < 755 && !lastSpaceChar) {
-    //Serial.print("dash\n");
-    ch += "-";
-    //lastSpaceChar = false;
-  } else if(dif > 1495 && dif < 1505 && !lastSpaceChar){
-    //Serial.print(ch);
-    //convert_morse(ch);
-    //ch = "";
-    //lastSpaceChar = false;
-  }
-  lastChange = curTime;
-  //lastChange = curTime;
-  //Serial.print(millis() - lastChange);
-  //Serial.print(F("\n"));
-  */
 }
