@@ -1,20 +1,24 @@
 #include "MorseReader.h"
-// an instance from the class, It contains the morse code
+#define morsePin 2
+
+
+MorseReader morseReader = MorseReader(morsePin);
+volatile bool checkVal;
 
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
+  pinMode(morsePin, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(morsePin), morseISR, CHANGE);
+  Serial.print(F("Setup Done"));
 }
 
 void loop() {
-
 }
 
-
-void morse_ISR()
+void morseISR()
 {
-  //Calling the morse converter by Polling
+  //checkVal = true;
+  morseReader.Read_by_interrupt();
 }
-
-
 

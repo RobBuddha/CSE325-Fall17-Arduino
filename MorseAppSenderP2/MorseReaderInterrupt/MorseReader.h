@@ -4,9 +4,9 @@ class MorseReader
 {
   public:
             MorseReader(int buttonPin);
-            void Read_by_polling();     //The procedure to read the morse code by polling
             void Read_by_interrupt();   //The procedure to read the morse code by interrupt
             void convert_morse(String); //The procedure to convert the morse code to the letters
+            void getChar(unsigned long duration);
   private:
  
             int             button_s = LOW;         // current state of the button
