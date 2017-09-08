@@ -154,7 +154,7 @@ void MorseReader::readByPolling()
       ch += "-";
     }
     
-    last_time = millis(); // log the time when the state changed
+    last_time = time; // log the time when the state changed
   }
 
   last_b_s = button_s;
