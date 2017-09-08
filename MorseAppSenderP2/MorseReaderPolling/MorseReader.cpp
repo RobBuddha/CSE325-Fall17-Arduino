@@ -8,9 +8,12 @@ MorseReader::MorseReader(int pin)
   buttonPin = pin;
   pinMode(buttonPin, INPUT);
 }
-  
+
 void MorseReader::convert_morse(String str)
 {
+                                        //      Massive set of if statements that will convert the Morse
+                                        // String to a string of letters and/or numbers.
+
   if (str == ".-") {
     Serial.print("A");
     }
@@ -120,61 +123,67 @@ void MorseReader::convert_morse(String str)
     Serial.print("0");
     }
 
-  ch = "";
+  ch = "";                              // Reset the string to receive the next letter.
 }
 
 void MorseReader::readByPolling()
 {
-  button_s = digitalRead(buttonPin);
+  button_s = digitalRead(buttonPin);    // Digital Read the current state to button_s
 
   if (button_s == HIGH && last_b_s == LOW) {
-    
-    // Dot/Dash space, Letter space, or Word space happened
-    unsigned int time = millis();
-    int duration = time - last_time;
-  
+
+    // Dot/Dash space, Letter space, or Word space happened.
+
+    unsigned int time = millis();       // Record time in ms.
+
+    int duration = time - last_time;    // Duration of the LOW signal will determine
+                                        // what space happened.
+
     if (duration > 700 && duration < 800) {
-      // Letter Space
+      // Letter Space happened (duration = 750 ms). Convert the character from morse.
       convert_morse(ch);
+
     } else if (duration > 950 && duration < 1050) {
-      // Word Space
+      // Word Space happened ( duration = 1000 ms) First convert the character from morse,
+      // then, print a space to denote the end of a word.
       convert_morse(ch);
       Serial.print(" ");
     }
-    last_time = time;
-    
+    last_time = time;                   // Update the time for the next state change.
+
+
+    // Button was just LOW, and now has received input.
   } else if (button_s == LOW && last_b_s == HIGH) {
-    
-    // Dot or Dash happened
-    unsigned int time = millis();
-    int duration = time - last_time;
-    
+
+    // Dot or Dash happened. Record and test the duration of the HIGH signal to
+    // determine if a dot or a dash just happened.
+
+    unsigned int time = millis();       // Time recorded in ms.
+    int duration = time - last_time;    // Duration is used for determining dot/dash.
+
     if (duration > 150 && duration < 350) {
-      // Dot
+      // Dot happened. Append string <ch> with a '.'.
       ch += ".";
     } else if (duration > 650 && duration < 850) {
-      // Dash
+      // Dash happened. Append string <ch> with a '-'.
       ch += "-";
     }
-    last_time = time;
-    
+
+    last_time = time;                   // Update the last_time with the current time.
+
   } else if (button_s == LOW && last_b_s == LOW) {
-    
-    // End of sentence happened
+
+    // End of sentence happened.
     unsigned int time = millis();
     int duration = time - last_time;
-    
+
     if (duration > 1050 && ch != "") {
       convert_morse(ch);
       Serial.print(". ");
     }
-    
+
   }
-  
+
   last_b_s = button_s;
 }
 
-void MorseReader::Read_by_interrupt()
-{
-  
-}
