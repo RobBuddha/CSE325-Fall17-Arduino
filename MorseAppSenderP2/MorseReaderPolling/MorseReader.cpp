@@ -136,7 +136,7 @@ void MorseReader::readByPolling() {
 
     if (duration > 700 && duration < 800) {
       // Letter Space happened (duration = 750 ms)
-
+      convert_morse(ch);
     } else if (duration > 950 && duration < 1050) {
       // Word Space happened ( duration = 1000 ms)
       convert_morse(ch);
