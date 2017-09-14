@@ -1,0 +1,6 @@
+circumference of wheel = about 13"
+
+10% duty cycle = about 250ms / revolution
+20% duty cycle = about 115ms / revolution
+30% duty cycle = about 75ms /revolution
+

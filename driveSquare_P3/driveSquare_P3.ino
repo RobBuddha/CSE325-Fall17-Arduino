@@ -22,8 +22,9 @@ void setup()               // All the initail configuration should be placed her
 void loop()                // Loop function which will be run forever
 {
   driveSquare();          // drive a square
+  
   carStop();              // stop the car
-  delay(10000000000000);           // wait for 10 seconds
+  delay(10000);           // wait for 10 seconds
 }
 
 
@@ -33,23 +34,81 @@ void loop()                // Loop function which will be run forever
 void driveSquare() 
 {  
   // The code to drive the car in a square
-  carServo.write(90);
+  
+  carServo.write(90); // Go straight for 1500 sec
+  delay(100);
   analogWrite(pwmToMotor, carSpeed);
   delay(1500);
+  
+  analogWrite(pwmToMotor, 0); // Stop and turn wheels to the right
+  delay(100);
   carServo.write(180);
-  delay(1050);
-  carServo.write(90);
+  delay(100);
+
+  analogWrite(pwmToMotor, carSpeed); // Turn car and stop for 250ms
+  delay(1075);
+  analogWrite(pwmToMotor, 0);
+  delay(100);
+
+  //-----
+
+  carServo.write(90); // Go straight for 1500 sec
+  delay(100);
+  analogWrite(pwmToMotor, carSpeed);
   delay(1500);
+  
+  analogWrite(pwmToMotor, 0); // Stop and turn wheels to the right
+  delay(100);
   carServo.write(180);
-  delay(1050);
-  carServo.write(90);
+  delay(100);
+
+  analogWrite(pwmToMotor, carSpeed); // Turn car and stop for 250ms
+  delay(1025);
+  analogWrite(pwmToMotor, 0);
+  delay(100);
+
+  //-----
+
+  carServo.write(90); // Go straight for 1500 sec
+  delay(100);
+  analogWrite(pwmToMotor, carSpeed);
   delay(1500);
+  
+  analogWrite(pwmToMotor, 0); // Stop and turn wheels to the right
+  delay(100);
   carServo.write(180);
-  delay(1050);
-  carServo.write(90);
+  delay(100);
+
+  analogWrite(pwmToMotor, carSpeed); // Turn car and stop for 250ms
+  delay(1025);
+  analogWrite(pwmToMotor, 0);
+  delay(100);
+
+  //-----
+
+  carServo.write(90); // Go straight for 1500 sec
+  delay(100);
+  analogWrite(pwmToMotor, carSpeed);
   delay(1500);
+  
+  analogWrite(pwmToMotor, 0); // Stop and turn wheels to the right
+  delay(100);
   carServo.write(180);
-  delay(1050);
+  delay(100);
+
+  analogWrite(pwmToMotor, carSpeed); // Turn car and stop for 250ms
+  delay(1025);
+  analogWrite(pwmToMotor, 0);
+  delay(100);
+
+  //-----
+
+  carServo.write(90); // Go straight for 250ms
+  delay(100);
+  analogWrite(pwmToMotor, carSpeed);
+  delay(250);
+
+  analogWrite(pwmToMotor, 0);
 }
 
 void carStop() 
