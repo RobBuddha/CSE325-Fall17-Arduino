@@ -30,7 +30,7 @@ void setup()
     while (1);
   }
   
-  // You will need to put the next two lines into your own sketch, _immediatly_ after bno.begin() to use a predefined calibration
+  // You will need to put the next two lines into your own sketch, _immediately_ after bno.begin() to use a predefined calibration
   // byte c_data[22] = {0, 0, 0, 0, 0, 0, 172, 250, 112, 255, 52, 253, 0, 0, 253, 255, 255, 255, 232, 3, 240, 2}; //replace this line with the serial output of this sketch
   // bno.setCalibData(c_data);
   
@@ -52,7 +52,10 @@ void loop()
   Serial.print(event.orientation.z, 4);
   Serial.println();
 
-  //show the calibration states for all 3 sensors + system. Optimally, in NDOF mode you want all these to read "1" before you assume good calibration (Note: Some sensors are off in other modes)
+  // Show the calibration states for all 3 sensors + system.
+  // Optimally, in NDOF mode you want all these to read "1" before you assume good calibration.
+  // (Note: Some sensors are off in other modes)
+  
   bool bMAG = bno.getCalibState(Adafruit_BNO055::CALIB_STAT_MAG);
   Serial.print("MAG Calibration: ");
   Serial.println(bMAG);
@@ -68,7 +71,7 @@ void loop()
 
   byte buffer[22] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
   bno.getCalibData(buffer);
-  //print the actual line to paste into your sketch (see setup() above)
+  // Print the actual line to paste into your sketch (see setup() above)
   Serial.print("byte c_data[22] = {");
   for (int i = 0; i < 22; i++)
   {
