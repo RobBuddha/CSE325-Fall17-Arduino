@@ -12,7 +12,7 @@ static int SELKEY_ARV = 742;
 static int NOKEY_ARV = 1023;
 
 DFR_Key::DFR_Key()
-{	
+{  
   _refreshRate = 10;
   _keyPin = DEFAULT_KEY_PIN;
   _threshold = DEFAULT_THRESHOLD;
