@@ -46,19 +46,21 @@ void setup() {
     delay(100);
   }
 
+  Serial.println("localKey");
+
   if (!bno.begin(Adafruit_BNO055::OPERATION_MODE_NDOF)) {
     Serial.print("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");   // check if the sensor is connected and deteced
     while (1);
   }
 
-  byte c_data[22] = {236, 255, 220, 255, 3, 0, 0, 6, 162, 4, 16, 6, 255, 255, 255, 255, 0, 0, 232, 3, 125, 2};    ///////////////// PASTE YOUR CALIBRATION DATA HERE /////////////
+  byte c_data[22] = {253, 255, 254, 255, 17, 0, 232, 254, 97, 2, 30, 1, 255, 255, 0, 0, 0, 0, 232, 3, 5, 3};    ///////////////// PASTE YOUR CALIBRATION DATA HERE /////////////
   bno.setCalibData(c_data);                                                                                       // Save calibration data
   delay(1000);
   bno.setExtCrystalUse(true);
 
-  analogWrite(carSpeedPin, carSpeed);         // set the pwm duty cycle
+  //analogWrite(carSpeedPin, carSpeed);         // set the pwm duty cycle
 
-  FlexiTimer2::set(100, navigate);            // define a timer interrupt with a period of "100*0.001 = 0.1" s or 10 Hz
+  FlexiTimer2::set(1000, navigate);            // define a timer interrupt with a period of "100*0.001 = 0.1" s or 10 Hz
   FlexiTimer2::start();                       // start the timer interrupt
 }
 
@@ -67,6 +69,29 @@ void setup() {
 void ReadHeading() { // Input: Nothing - // Output: HEADING
   // Read the heading using VECTOR_EULER from the IMU
   // that is more stable than any VECTOR_MAGNETOMETER.
+  //imu::Vector<3> rawAcc = bno.getVector(Adafruit_BNO055::VECTOR_ACCELEROMETER);
+  imu::Vector<3> rawMag = bno.getVector(Adafruit_BNO055::VECTOR_MAGNETOMETER);
+  //imu::Vector<3> rawGyr = bno.getVector(Adafruit_BNO055::VECTOR_GYROSCOPE);
+
+//  Serial.print("Acc: <");
+//  Serial.print(rawAcc.x()); Serial.print(", ");
+//  Serial.print(rawAcc.y()); Serial.print(", ");
+//  Serial.print(rawAcc.z()); Serial.println(">");
+
+  Serial.print("Mag: <");
+  Serial.print(rawMag.x()); Serial.print(", ");
+  Serial.print(rawMag.y()); Serial.print(", ");
+  Serial.print(rawMag.z()); Serial.print("> -- ");
+
+//  Serial.print("Gyr: <");
+//  Serial.print(rawGyr.x()); Serial.print(", ");
+//  Serial.print(rawGyr.y()); Serial.print(", ");
+//  Serial.print(rawGyr.z()); Serial.println(">");
+
+  HEADING = atan2(rawMag.y(), rawMag.x()) * 180 / PI;
+  // 90° is north, -90° is south, 0° is west, +/-180° is east
+
+  Serial.print(HEADING);
 }
 
 
