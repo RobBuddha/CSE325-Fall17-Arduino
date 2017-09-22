@@ -23,6 +23,8 @@ float errorHeadingRef = 10.37;                // Define a variable for the error
 int localkey = 0;                             // Variable for reading the keypad value
 int ref = 0;                                  // Reference angle, set via keypad.
 int steerPrecision = 10;                      // Variable indicates the step size (in degrees) between steering angles.
+int lastServoVal = 0;
+int lastCarSpeed = 0;
 
 void setup() {
   myservo.attach(44);                         // set which pin the servo is connected to (here pin 44).
@@ -208,10 +210,16 @@ void Actuate() {                              // Input: Steering angle - Output:
     
   } else {                                    // If 30 seconds hasn't passed yet, set the steering angle and the speed.
     carSpeed = 255*0.1;
-    myservo.write(STEERANGLE);
+    if(lastServoVal != STEERANGLE){
+      myservo.write(STEERANGLE);
+      lastServoVal = STEERANGLE;
+    }
   }
   Serial.print("Car Speed: "); Serial.println(carSpeed);
-  analogWrite(carSpeedPin, carSpeed);
+  if(lastCarSpeed != carSpeed{
+    analogWrite(carSpeedPin, carSpeed);
+    lastCarSpeed = carSpeed;
+  }
 }
 
 void navigate() {                              // This function will be called every 0.1 seconds (10Hz)
