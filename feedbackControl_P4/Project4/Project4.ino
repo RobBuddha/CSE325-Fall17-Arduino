@@ -60,12 +60,14 @@ void setup() {
     while (1);
   }
 
-  byte c_data[22] = {253, 255, 254, 255, 17, 0, 232, 254, 97, 2, 30, 1, 255, 255, 0, 0, 0, 0, 232, 3, 5, 3};    ///////////////// PASTE YOUR CALIBRATION DATA HERE /////////////
+  //byte c_data[22] = {0, 0, 0, 0, 0, 0, 61, 255, 150, 2, 25, 1, 255, 255, 0, 0, 0, 0, 232, 3, 201, 3};    ///////////////// PASTE YOUR CALIBRATION DATA HERE /////////////
+  byte c_data[22] = {0, 0, 0, 0, 0, 0, 68, 255, 50, 2, 207, 0, 255, 255, 255, 255, 1, 0, 232, 3, 159, 3};
+
   bno.setCalibData(c_data);                                                                                     // Save calibration data
   delay(1000);
   bno.setExtCrystalUse(true);
   
-  FlexiTimer2::set(1000, navigate);           // Define a timer interrupt with a period of "1000*0.001 = 1" s or 100 Hz
+  FlexiTimer2::set(100, navigate);           // Define a timer interrupt with a period of "1000*0.001 = 1" s or 100 Hz
   FlexiTimer2::start();                       // Start the timer interrupt.
 }
 
@@ -74,7 +76,7 @@ void setup() {
 void ReadHeading() {
  
   imu::Vector<3> rawMag = bno.getVector(Adafruit_BNO055::VECTOR_MAGNETOMETER);     // Read the current data of the car via the Magnetometer.
-
+  imu::Vector<3> euler = bno.getVector(Adafruit_BNO055::VECTOR_EULER);
   // Keep these lines of code for our next project, even though it is not necessary for Project4.
   
   //imu::Vector<3> rawGyr = bno.getVector(Adafruit_BNO055::VECTOR_GYROSCOPE);      // Read the current data of the car via the Magnetometer.
@@ -93,31 +95,24 @@ void ReadHeading() {
   //  Serial.print(rawMag.y()); Serial.print(", ");
   //  Serial.print(rawMag.z()); Serial.print("> -- ");
 
-  //  Serial.print("Gyr: <");
+  //  Serial.print("  Gyr: <");
   //  Serial.print(rawGyr.x()); Serial.print(", ");
   //  Serial.print(rawGyr.y()); Serial.print(", ");
   //  Serial.print(rawGyr.z()); Serial.println(">");
 
-  HEADING = (atan2(rawMag.y(), rawMag.x()) * 180 / PI); // This output makes North = 90 degrees, it will be corrected to 0 degrees.
-
-  // Shifts output to make 0° NORTH, 90° EAST, +/-180° SOUTH, -90° WEST
-  if (HEADING <= 180 && HEADING >= -90) {
-    HEADING -= 90;
-  } else {
-    HEADING += 270;
-  }
-
-  HEADING += errorHeadingRef;                          // Adds error in HEADING for Tempe (10.37 degrees).
+  //HEADING = (atan2(rawMag.y(), rawMag.x()) * 180 / PI); // This output makes North = 90 degrees, it will be corrected to 0 degrees.
+  
+  HEADING = euler.x();
+  Serial.println(HEADING);
+  HEADING -= errorHeadingRef;                          // Adds error in HEADING for Tempe (10.37 degrees). 
 
   // Corrects any values which exceed 180 degrees.
   if (HEADING > 180) HEADING -= 360;                   // FINAL OUTPUT: 0° is NORTH, 90° is EAST, +/-180° is SOUTH, -90° is WEST.
 
   Serial.print("Angle: "); Serial.print(HEADING); Serial.print(" | ");              // Print HEADING to the Serial Monitor.
-  lcd.print(HEADING);                                                               // Print HEADING to the LCD Display.
 }
 
 void CalculateSteering() {                    // Calculate the steering angle according to the reference heading and actual heading.
-  
   int leftBound, rightBound, backBound;       // Create variables to determine the bounds of <ref>. Range is (-150)-180.
 
   if (ref < -90) {                            // Between -180 and -90 (does not include -180 or -90). Given that ref will be in increments
@@ -205,7 +200,6 @@ void CalculateSteering() {                    // Calculate the steering angle ac
   if (STEERANGLE < 45) STEERANGLE = 45;       // The car canno turn its wheels less than 45 degrees, so cap it here.
 
   Serial.print("Steer Angle: "); Serial.println(STEERANGLE);// Serial.print(" | ");       // Print the steering angle to the Serial Monitor.
-  lcd.print(STEERANGLE);                                                                  // Print the steering angle to the LCD Display.
 }
 
 void Actuate() {                              // Input: Steering angle - Output: nothing
@@ -213,16 +207,11 @@ void Actuate() {                              // Input: Steering angle - Output:
     carSpeed = 0;                             // Make the car stop after 30 seconds.
     
   } else {                                    // If 30 seconds hasn't passed yet, set the steering angle and the speed.
-    if (HEADING < (ref+270) && HEADING > (ref+90)) {
-      //carSpeed = 255*0.08;
-    } else {
-      //carSpeed = 255*0.16;
-    }
-    //myservo.write(STEERANGLE);
+    carSpeed = 255*0.1;
+    myservo.write(STEERANGLE);
   }
-  myservo.write(STEERANGLE);
-  //Serial.print("Car Speed: "); Serial.println(carSpeed);
-  //analogWrite(carSpeedPin, carSpeed);
+  Serial.print("Car Speed: "); Serial.println(carSpeed);
+  analogWrite(carSpeedPin, carSpeed);
 }
 
 void navigate() {                              // This function will be called every 0.1 seconds (10Hz)
@@ -232,8 +221,21 @@ void navigate() {                              // This function will be called e
   Actuate();                                   // Actuate (set the steering angle).
 }
 
+void printHeadingOnLCD(){
+  lcd.print("Angle: ");
+  lcd.print(HEADING);
+}
+
+void printSteeringAngleOnLCD(){
+  lcd.print("Steer Angle: ");
+  lcd.print(STEERANGLE);
+}
+
 void loop()
 {
-  lcd.clear();                                 // clear the LCD Display.
+  lcd.clear();
+  printHeadingOnLCD();
+  lcd.setCursor(0, 1);
+  printSteeringAngleOnLCD();
   delay(100);
 }
