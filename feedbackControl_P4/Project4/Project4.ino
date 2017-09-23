@@ -216,7 +216,7 @@ void Actuate() {                              // Input: Steering angle - Output:
     }
   }
   Serial.print("Car Speed: "); Serial.println(carSpeed);
-  if(lastCarSpeed != carSpeed{
+  if(lastCarSpeed != carSpeed) {
     analogWrite(carSpeedPin, carSpeed);
     lastCarSpeed = carSpeed;
   }
