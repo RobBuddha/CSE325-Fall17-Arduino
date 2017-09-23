@@ -25,6 +25,7 @@ int ref = 0;                                  // Reference angle, set via keypad
 int steerPrecision = 10;                      // Variable indicates the step size (in degrees) between steering angles.
 int lastServoVal = 0;
 int lastCarSpeed = 0;
+unsigned long startTime = 0;
 
 void setup() {
   myservo.attach(44);                         // set which pin the servo is connected to (here pin 44).
@@ -68,6 +69,8 @@ void setup() {
   bno.setCalibData(c_data);                                                                                     // Save calibration data
   delay(1000);
   bno.setExtCrystalUse(true);
+
+  startTime = millis();
   
   FlexiTimer2::set(100, navigate);           // Define a timer interrupt with a period of "1000*0.001 = 1" s or 100 Hz
   FlexiTimer2::start();                       // Start the timer interrupt.
@@ -205,7 +208,7 @@ void CalculateSteering() {                    // Calculate the steering angle ac
 }
 
 void Actuate() {                              // Input: Steering angle - Output: nothing
-  if (millis() > 30000) {                     // After 30 seconds (from the startup)
+  if (millis() > startTime+30000) {                     // After 30 seconds (from the startup)
     carSpeed = 0;                             // Make the car stop after 30 seconds.
     
   } else {                                    // If 30 seconds hasn't passed yet, set the steering angle and the speed.
