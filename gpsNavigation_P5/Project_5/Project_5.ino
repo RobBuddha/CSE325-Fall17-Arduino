@@ -36,6 +36,7 @@ int lastCarSpeed = 0;
 float distance = 10;                           // distance from destination (in meters)
 bool readyToDrive = false;                     // State of the car
 int stopDistance = 5;                          // Distance from reference where car is allowed to stop
+int minSatellites = 5;                         // Minimum number of satellites required to for GPS to operate
 
 void setup() {
   myservo.attach(44); // servo is connected to pin 44
@@ -146,7 +147,7 @@ void ReadGPS() {
   if (GPS.newNMEAreceived()) {
     GPS.parse(GPS.lastNMEA());
   }
-  if (GPS.fix) {
+  if (GPS.satellites >= minSatellites) {
     lat = GPS.latitude;
     lon = GPS.longitude;
     if (GPS.lon == 'W') {
