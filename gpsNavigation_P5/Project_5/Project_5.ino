@@ -35,7 +35,7 @@ int lastServoVal  = 0;
 int lastCarSpeed = 0;
 float distance = 10;                           // distance from destination (in meters)
 bool readyToDrive = false;                     // State of the car
-int stopDistance = 2;                          // Distance from reference where car is allowed to stop
+int stopDistance = 5;                          // Distance from reference where car is allowed to stop
 
 void setup() {
   myservo.attach(44); // servo is connected to pin 44
@@ -91,15 +91,12 @@ void setup() {
     delay(100);                                   // delay to make display visible
   }
 
-  lcd.clear();
-  lcd.print("Reference Saved");
-  delay(1000);
-  
   latDestination = lat;                           // saving the destination point (latitude)
   lonDestination = lon;                           // saving the destination point (longitude)
 
-  Serial.print("-------------> LATITUDE  DESTINATION: "); Serial.print(latDestination, 5); Serial.println("<-------------");
-  Serial.print("-------------> LONGITUDE DESTINATION: "); Serial.print(lonDestination, 5); Serial.println("<-------------");
+  lcd.clear();
+  lcd.print("Reference Saved");
+  delay(2000);
 
   localkey = 0;
   while (localkey != 1) {                         // wait for select button
@@ -159,8 +156,6 @@ void ReadGPS() {
       lat = lat * -1;
     }
   }
-  Serial.print("Latitude: ");  Serial.print(lat, 8); Serial.print(" | Diff: "); Serial.println(latDestination - lat, 8);
-  Serial.print("Longitude: "); Serial.print(lon, 8); Serial.print(" | Diff: "); Serial.println(lonDestination - lon, 8);
 }
 
 void ReadHeading() {
@@ -169,7 +164,6 @@ void ReadHeading() {
   imu::Vector<3> euler = bno.getVector(Adafruit_BNO055::VECTOR_EULER);
   
   HEADING = euler.x(); // Grab euler direction output
-  //Serial.println(HEADING);
   
   HEADING -= errorHeadingBearing; // Adds error in HEADING for Tempe. 
   
@@ -177,11 +171,12 @@ void ReadHeading() {
   if (HEADING > 180) HEADING -= 360;
   
   // FINAL OUTPUT: 0° is NORTH, 90° is EAST, +/-180° is SOUTH, -90° is WEST.
-  Serial.print("Heading: "); Serial.print(HEADING); Serial.print(" | ");              // Print HEADING to the Serial Monitor.
 }
 
 void CalculateBearing() {
-  // Function calculates the direction the car needs to go based on GPS data. Bearing will be calculated as the angle from the car's location to the reference point.
+  // Function calculates the direction the car needs to go based on GPS data.
+  // Bearing will be calculated as the angle from the car's location to the reference point.
+  // Angle will be the degrees from North.
   //
   //             |     |
   //             |   ° * Car
@@ -198,16 +193,13 @@ void CalculateBearing() {
   float deltaLat = latDestination - lat;
   float deltaLon = lonDestination - lon;
   
-  Bearing = (atan2(deltaLat, deltaLon) * 180/ PI) - 90; // 0° is NORTH, -90° is EAST, -180° is SOUTH, 90/-270° is WEST.
+  Bearing = (atan2(deltaLat, deltaLon) * 180/ PI) - 90; // OUTPUT: 0° is NORTH, -90° is EAST, -180° is SOUTH, 90/-270° is WEST.
 
   if (Bearing < -180) {
     Bearing += 360;
-  } // 0° is NORTH, -90° is EAST, +/-180° is SOUTH, 90° is WEST.
+  } // OUTPUT: 0° is NORTH, -90° is EAST, +/-180° is SOUTH, 90° is WEST.
 
   Bearing = Bearing * -1;
-
-  Serial.print("Bearing: "); Serial.print(Bearing); Serial.print(" | ");
-
   // FINAL OUTPUT: 0° is NORTH, 90° is EAST, +/-180° is SOUTH, -90° is WEST.
 }
 
@@ -292,13 +284,11 @@ void CalculateSteering() {                    // Calculate the steering angle ac
   
   if (STEERANGLE > 135) STEERANGLE = 135;     // The car cannot turn its wheels more than 135 degrees, so cap it here.
   if (STEERANGLE < 45) STEERANGLE = 45;       // The car canno turn its wheels less than 45 degrees, so cap it here.
-  
-  Serial.print("Steer Angle: "); Serial.println(STEERANGLE);// Serial.print(" | ");       // Print the steering angle to the Serial Monitor.
 }
 
 // Haversine formula
 void CalculateDistance() {
-  // Function calculates distance to destination based on current coordinates and destination coordinates (units = meters)
+  // Function calculates the distance between the car and the destination using coordinates from GPS (units = meters)
   float r = 6371000; // Earth's radius in meters
 
   float lat_rad = lat/100 * PI/180;
@@ -353,32 +343,7 @@ void printLocationOnLCD() {
 }
 
 void loop() {
-  lcd.clear();    // clear the LCD
-  // You can print anything on the LCD to debug your program!!!
+  lcd.clear();
   printLocationOnLCD();
   delay(100);
 }
-
-/*
-<script>
-var lat = 3314.71799;
-var lon = 11151.46893;
-var latDestination = 3314.71777;
-var lonDestination = 11151.46875;
-
-var deltaLat = latDestination - lat;
-var deltaLon = lonDestination - lon;
-
-document.write("DeltaLat: " + deltaLat + " | ");
-document.write("DeltaLon: " + deltaLon + " | ");
-
-var hypotenuse = Math.sqrt(Math.pow(deltaLat,2) + Math.pow(deltaLon,2));
-
-var distance = 111000 * hypotenuse;
-
-distance = distance / 100;
-
-document.writeln(distance + " meters");
-
-</script>
-*/
