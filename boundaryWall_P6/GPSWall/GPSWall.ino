@@ -1,5 +1,3 @@
-
-
 #include <Adafruit_BNO055.h>
 #include <FlexiTimer2.h>
 #include <Adafruit_Sensor.h>
@@ -12,7 +10,7 @@
 Adafruit_GPS GPS(&Serial3);                   // define GPS object
 Servo myservo;                                // define servo object
 Adafruit_BNO055 bno = Adafruit_BNO055(55);    // define BNO sensor object
-LiquidCrystal lcd( 8, 9, 4, 5, 6, 7); // define lcd pins use these default values for OUR LCD
+LiquidCrystal lcd( 8, 9, 4, 5, 6, 7);         // define lcd pins use these default values for OUR LCD
 
 #define GPSECHO  false
 #define lThreshold 5                          // Lidar Threshold
@@ -32,6 +30,7 @@ long int lat = 33.420887 * 100000;              // GPS latitude in degree decima
 long int lon = -111.934089 * 100000;            // GPS latitude in degree decimal * 100000 (CURRENT POSITION)
 long int latDestination = 33.421620 * 100000;   // reference destination (INITIAL DESTINATION)
 long int lonDestination = -111.930118 * 100000; // reference destination (INITIAL DESTINATION)
+
 ///////////////////////////////////////// Boundary points  //////////////////////////////////////////
 long int latPoint1 = 33.421846 * 100000;     // reference destination (Point1)
 long int lonPoint1 =  -111.934683 * 100000;   // reference destination (Point1)
@@ -88,7 +87,6 @@ void setup() {
   GPS.sendCommand(PMTK_SET_NMEA_UPDATE_1HZ);    // 1 Hz update rate
   GPS.sendCommand(PGCMD_ANTENNA);               // notify if antenna detected
   useInterrupt(true);                           // use interrupt for reading gps data
-
 }
 
 SIGNAL(TIMER0_COMPA_vect) {                   // Interrupt for reading GPS data. Don't change this...
@@ -123,16 +121,29 @@ void GPSRead() {
   if (GPS.newNMEAreceived()) {
     if (!GPS.parse(GPS.lastNMEA()))
       return;
-  }
+    }
+    
   if (GPS.fix) {
-    // read GPS Latitude in degree decimal
-    // read GPS Longitude in degree decimal
+    lat = GPS.latitude;
+    lon = GPS.longitude;
+    
+    // Create a grid by denoting negative Quadrants.
+    if (GPS.lon == 'W') {
+      lon = lon * -1;
+    }
+    if (GPS.lat == 'S') {
+      lat = lat * -1;
+    }
 
-    // Calculate distance from each Wall (call CalculateDistancePerpendicular(); )
-    // if distance is less than the threshold
-    // compute the direction vector X (call CalculateDirectionPerpendicularX(); )
-    // compute the direction vector Y (call CalculateDirectionPerpendicularY(); )
-    // Set a new Destination according to direction vectors X & Y
+    //At this point, we have new values for latitude and longitude
+
+  // Find which walls 
+  
+  // Calculate distance from each Wall (call CalculateDistancePerpendicular(); )
+  // if distance is less than the threshold
+  // compute the direction vector X (call CalculateDirectionPerpendicularX(); )
+  // compute the direction vector Y (call CalculateDirectionPerpendicularY(); )
+  // Set a new Destination according to direction vectors X & Y
   }
 }
 
@@ -146,10 +157,23 @@ double CalculateDirectionPerpendicularY(double x1, double  y1, double  x2, doubl
   return Dy ;                       // The output of this function is direction along y-axis
 }
 
-double CalculateDistancePerpendicular(double x1, double  y1, double  x2, double  y2, double  x3, double y3) {       // Function to calculate distance from the wall --- INPUTs:( Current x, Current y, Point i (x). Point i (y), Point j (x), Point j (y) )
-  double d;
-  return d;                         // The output of this function is distance from the wall
+double CalculateDistanceFromPerpendicular(double carLon, double carLat, double point1Lon, double point1Lat, double point2Lon, double point2Lat) {
+  /*  Description: Function calculates 
+   *  
+   *  Return: Function returns distance from a wall, or -1 if invalid
+   */
+   doulbe distance;
 
+   return distance;
+}
+
+double CalculateDistanceFromPoint(double carLon, double carLat, double pointLon, double pointLat) {
+  /*  Description: Function will calculate the distance between car and a specified point.
+   *  Returns the distance from specified point.
+   */
+   double distance;
+
+   return distance;
 }
 
 void ReadHeading() { 
