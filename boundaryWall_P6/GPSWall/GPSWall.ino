@@ -21,8 +21,6 @@ LiquidCrystal lcd( 8, 9, 4, 5, 6, 7);         // define lcd pins use these defau
 float Bearing = 0;
 int STEERANGLE = 90;                            // servo initial angle (range is 0:180)
 float HEADING = 0;                              // heading
-int LidarRight;                                 // LIDAR left
-int LidarLeft;                                  // LIDAR right
 boolean usingInterrupt = false;                 // Using interrupt for reading GPS chars
 int carSpeedPin = 2;                            // pin for DC motor (PWM for motor driver)
 float errorHeadingRef = 0;                      // Heading error
@@ -30,28 +28,34 @@ long int lat = 33.420887 * 100000;              // GPS latitude in degree decima
 long int lon = -111.934089 * 100000;            // GPS latitude in degree decimal * 100000 (CURRENT POSITION)
 long int latDestination = 33.421620 * 100000;   // reference destination (INITIAL DESTINATION)
 long int lonDestination = -111.930118 * 100000; // reference destination (INITIAL DESTINATION)
+double threshhold = 3;				// Only correct if within 3m of wall
 
 ///////////////////////////////////////// Boundary points  //////////////////////////////////////////
-long int latPoint1 = 33.421846 * 100000;     // reference destination (Point1)
+long int latPoint1 = 33.4218461 * 100000;     // reference destination (Point1)
 long int lonPoint1 =  -111.934683 * 100000;   // reference destination (Point1)
 
 long int latPoint2 = 33.421846 * 100000;     // reference destination (Point2)
 long int lonPoint2 =  -111.933382 * 100000;   // reference destination (Point2)
 
 long int latPoint3 = 33.421147 * 100000;     // reference destination (Point3)
-long int lonPoint3 =  -111.933772 * 100000;   // reference destination (Point3)
+long int lonPoint3 =  -111.9337721 * 100000;   // reference destination (Point3)
 
 long int latPoint4 = 33.420825 * 100000;     // reference destination (Point4)
 long int lonPoint4 =  -111.933824 * 100000;   // reference destination (Point4)
 
-long int latPoint5 = 33.420823 * 100000;     // reference destination (Point5)
-long int lonPoint5 =  -111.934168 * 100000;   // reference destination (Point5)
+long int latPoint5 = 33.4208231 * 100000;     // reference destination (Point5)
+long int lonPoint5 =  -111.9341681 * 100000;   // reference destination (Point5)
 
 long int latPoint6 = 33.421151 * 100000;     // reference destination (Point6)
 long int lonPoint6 =  -111.934220 * 100000;   // reference destination (Point6)
 /////////////////////////////////////////////////////////////////////////////////////////////////////
+struct point {
+  long int lon;
+  long int lat;
+};
 
-
+typedef struct point Point;
+Point endpoints[] = {{lonPoint1, latPoint1}, {lonPoint2, latPoint2}, {lonPoint3, latPoint3}, {lonPoint4, latPoint4}, {lonPoint5, latPoint5}, {lonPoint6, latPoint6}, {lonPoint1, latPoint1}};
 
 void setup() {
   myservo.attach(44);                         // servo is connected to pin 44
@@ -121,12 +125,12 @@ void GPSRead() {
   if (GPS.newNMEAreceived()) {
     if (!GPS.parse(GPS.lastNMEA()))
       return;
-    }
-    
+  }
+
   if (GPS.fix) {
     lat = GPS.latitude;
     lon = GPS.longitude;
-    
+
     // Create a grid by denoting negative Quadrants.
     if (GPS.lon == 'W') {
       lon = lon * -1;
@@ -136,64 +140,103 @@ void GPSRead() {
     }
 
     //At this point, we have new values for latitude and longitude
+    // Find which walls
 
-  // Find which walls 
-  
-  // Calculate distance from each Wall (call CalculateDistancePerpendicular(); )
-  // if distance is less than the threshold
-  // compute the direction vector X (call CalculateDirectionPerpendicularX(); )
-  // compute the direction vector Y (call CalculateDirectionPerpendicularY(); )
-  // Set a new Destination according to direction vectors X & Y
+    // Calculate distance from each Wall (call CalculateDistancePerpendicular(); )
+    // if distance is less than the threshold
+    // compute the direction vector X (call CalculateDirectionPerpendicularX(); )
+    // compute the direction vector Y (call CalculateDirectionPerpendicularY(); )
+    // Set a new Destination according to direction vectors X & Y
+
+    //6 should be #defined how many lines but im lazy
+    double* distanceToLines = new double[6];
+    distanceToLines[0] = CalculateDistanceFromPerpendicular(lon, lat, lonPoint1, latPoint1, lonPoint2, latPoint2);
+    distanceToLines[1] = CalculateDistanceFromPerpendicular(lon, lat, lonPoint2, latPoint2, lonPoint3, latPoint3);
+    distanceToLines[2] = CalculateDistanceFromPerpendicular(lon, lat, lonPoint3, latPoint3, lonPoint4, latPoint4);
+    distanceToLines[3] = CalculateDistanceFromPerpendicular(lon, lat, lonPoint4, latPoint4, lonPoint5, latPoint5);
+    distanceToLines[4] = CalculateDistanceFromPerpendicular(lon, lat, lonPoint5, latPoint5, lonPoint6, latPoint6);
+    distanceToLines[5] = CalculateDistanceFromPerpendicular(lon, lat, lonPoint6, latPoint6, lonPoint1, latPoint1);
+    int indexes[] = { -1, -1};
+    int size = 0;
+    for (int i = 0; i < 6; i++) {
+      if (distanceToLines[i] < threshhold) {
+        indexes[size] = i;
+        size++;
+      }
+    }
+    int x = 0;
+    int y = 0;
+    for(int i = 0;i< size;i++){
+      x += CalculateDirectionPerpendicularX(lon, lat, endpoints[indexes[i]].lon, endpoints[indexes[i]].lat, endpoints[indexes[i] + 1].lon, endpoints[indexes[i] + 1].lat);
+      y += CalculateDirectionPerpendicularY(lon, lat, endpoints[indexes[i]].lon, endpoints[indexes[i]].lat, endpoints[indexes[i] + 1].lon, endpoints[indexes[i] + 1].lat);
+    }
+    //Sanitize
+    Bearing = atan2(y, x);
   }
 }
-
 double CalculateDirectionPerpendicularX(double x1, double  y1, double  x2, double  y2, double  x3, double y3) {     // Function to Calculate Horizental vector ---INPUTs:( Current x, Current y, Point i (x). Point i (y), Point j (x), Point j (y) )
   double Dx;
-  return Dx;                        // The output of this function is direction along x-axis
+  double m = (y3 - y2) / (x3 - x2); //Slope of line
+  double k = y2 - m * x2;      //yint
+  Dx = (x1 + m * y1 - m * k) / (m * m + 1);
+  return Dx - x1;                        // The output of this function is direction along x-axis
 }
 
 double CalculateDirectionPerpendicularY(double x1, double  y1, double  x2, double  y2, double  x3, double y3) {     // Function to Calculate Vertical vector   ---INPUTs:( Current x, Current y, Point i (x). Point i (y), Point j (x), Point j (y) )
   double Dy;
-  return Dy ;                       // The output of this function is direction along y-axis
+  double m = (y3 - y2) / (x3 - x2); //Slope of line
+  double k = y2 - m * x2;      //yint
+  Dy = (x1 + m * y1 - m * k) / (m * m + 1) + k;
+  return Dy - y1;                       // The output of this function is direction along y-axis
 }
 
-double CalculateDistanceFromPerpendicular(double carLon, double carLat, double point1Lon, double point1Lat, double point2Lon, double point2Lat) {
-  /*  Description: Function calculates 
-   *  
-   *  Return: Function returns distance from a wall, or -1 if invalid
-   */
-   doulbe distance;
-
-   return distance;
+double CalculateDistanceFromPerpendicular(double x1, double  y1, double  x2, double  y2, double  x3, double y3) {
+  /*  Description: Function calculates
+      Return: Function returns distance from a wall, or -1 if invalid
+  */
+  double distance;
+  double m = (y3 - y2) / (x3 - x2);
+  double k = y2 - m * x2;
+  distance = (abs(k + m * x1 - y1)) / (sqrt(1 + m * m));
+  return distance;
 }
 
-double CalculateDistanceFromPoint(double carLon, double carLat, double pointLon, double pointLat) {
+double CalculateDistanceFromPoint(double lon, double lat, double lonDestination, double latDestination) {
   /*  Description: Function will calculate the distance between car and a specified point.
-   *  Returns the distance from specified point.
-   */
-   double distance;
+      Returns the distance from specified point.
+  */
+  double distance;
+  float r = 6371000;                          // Earth's radius in meters
+  float lat_rad = lat / 100 * PI / 180;
+  float lon_rad = lon / 100 * PI / 180;
+  float latDst_rad = latDestination / 100 * PI / 180;
+  float lonDst_rad = lonDestination / 100 * PI / 180;
 
-   return distance;
+  float deltaLat = latDst_rad - lat_rad;      // Change in latitude
+  float deltaLon = lonDst_rad - lon_rad;      // Change in longitude
+
+  float a = sin(deltaLat / 2) * sin(deltaLat / 2) + cos(lat_rad) * cos(latDst_rad) * sin(deltaLon / 2) * sin(deltaLon / 2);
+  float c = 2 * atan2(sqrt(a), sqrt(1 - a));
+
+  distance = r * c;                           // in meters
+  return r * c;
 }
 
-void ReadHeading() { 
- // Read Heading from BNO055 sensor
+void ReadHeading() {
+  // Read Heading from BNO055 sensor
 }
 
 void CalculateBearing() {
-// Calculate Bearing based on current and destination coordinates
+  // Calculate Bearing based on current and destination coordinates
 }
 
-void CalculateSteering() { 
+void CalculateSteering() {
   // calculate steering angle based on heading and bearing
 }
 
-void SetCarDirection() { 
- // Set direction (actuate)                                                                          
+void SetCarDirection() {
+  // Set direction (actuate)
 }
-
-
-
 
 
 ISR(TIMER1_OVF_vect) {        // This function is called every 0.1 seconds
