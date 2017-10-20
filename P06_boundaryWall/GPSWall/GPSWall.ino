@@ -211,7 +211,7 @@ double CalculateDirectionPerpendicularX(double x1, double  y1, double  x2, doubl
   double m = (y3 - y2) / (x3 - x2); //Slope of line
   double k = y2 - m * x2;      //yint
   Dx = (x1 + m * y1 - m * k) / (m * m + 1);
-  return Dx - x1;                        // The output of this function is direction along x-axis
+  return Dx - x1;                        // The output of this function is the x component of the force vector from wall defined by (x2,y2)--(x3,y3)
 }
 
 double CalculateDirectionPerpendicularY(double x1, double  y1, double  x2, double  y2, double  x3, double y3) {     // Function to Calculate Vertical vector   ---INPUTs:( Current x, Current y, Point i (x). Point i (y), Point j (x), Point j (y) )
@@ -219,7 +219,7 @@ double CalculateDirectionPerpendicularY(double x1, double  y1, double  x2, doubl
   double m = (y3 - y2) / (x3 - x2); //Slope of line
   double k = y2 - m * x2;      //yint
   Dy = (x1 + m * y1 - m * k) / (m * m + 1) + k;
-  return Dy - y1;                       // The output of this function is direction along y-axis
+  return Dy - y1;                       // The output of this function is the x component of the force vector from wall defined by (x2,y2)--(x3,y3)
 }
 
 double CalculateDistanceFromPerpendicular(double x1, double  y1, double  x2, double  y2, double  x3, double y3) {
@@ -373,7 +373,6 @@ ISR(TIMER1_OVF_vect) {        // This function is called every 0.1 seconds
 }
 
 void printLocationOnLCD() {
-
   lcd.print("Lat: ");
   lcd.print(lat, 5);
   lcd.setCursor(0, 1);
@@ -382,10 +381,16 @@ void printLocationOnLCD() {
 
 }
 
+//Print distance from line i clockwise(facing north) starting at University
+void printDistanceFrom(int i){
+  lcd.print(CalculateDistanceFromPerpendicular(lon, lat, endpoints[i]->lon, endpoints[i]->lat, endpoints[i + 1]->lon, endpoints[i + 1]->lat);
+}
+
 void loop() {
   lcd.clear();      // clear LCD
   // you can pring anything on the LCD to debug your program while you're in the field!
-  printLocationOnLCD();
+  //printLocationOnLCD();
+  printDistanceFrom(5);
   delay(100);
 }
 
