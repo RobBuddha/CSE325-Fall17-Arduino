@@ -203,7 +203,7 @@ void GPSRead() {
     }
     //Sanitize
     //We update ref to drive to
-    ref = atan2(y, x);
+    ref = atan2(y, x)*180/PI;
   }
 }
 double CalculateDirectionPerpendicularX(double x1, double  y1, double  x2, double  y2, double  x3, double y3) {     // Function to Calculate Horizental vector ---INPUTs:( Current x, Current y, Point i (x). Point i (y), Point j (x), Point j (y) )
