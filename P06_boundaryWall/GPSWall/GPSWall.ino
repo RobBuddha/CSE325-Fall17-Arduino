@@ -386,6 +386,15 @@ void printDistanceFrom(int i){
   lcd.print(CalculateDistanceFromPerpendicular(lon, lat, endpoints[i].lon, endpoints[i].lat, endpoints[i + 1].lon, endpoints[i + 1].lat));
 }
 
+//Same indexing as PrintDistanceFrom
+void printForceVectorsFrom(int i){
+  lcd.print("X: ");
+  lcd.print(CalculateDirectionFromPerpendicularX(lon, lat, endpoints[i].lon, endpoints[i].lat, endpoints[i + 1].lon, endpoints[i + 1].lat), 3);
+  lcd.setCursor(0,1);
+  lcd.print("Y: ");
+  lcd.print(CalculateDirectionFromPerpendiculary(lon, lat, endpoints[i].lon, endpoints[i].lat, endpoints[i + 1].lon, endpoints[i + 1].lat), 3);
+}
+
 void loop() {
   lcd.clear();      // clear LCD
   // you can pring anything on the LCD to debug your program while you're in the field!
