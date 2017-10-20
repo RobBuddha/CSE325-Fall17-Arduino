@@ -383,7 +383,7 @@ void printLocationOnLCD() {
 
 //Print distance from line i clockwise(facing north) starting at University
 void printDistanceFrom(int i){
-  lcd.print(CalculateDistanceFromPerpendicular(lon, lat, endpoints[i]->lon, endpoints[i]->lat, endpoints[i + 1]->lon, endpoints[i + 1]->lat);
+  lcd.print(CalculateDistanceFromPerpendicular(lon, lat, endpoints[i].lon, endpoints[i].lat, endpoints[i + 1].lon, endpoints[i + 1].lat));
 }
 
 void loop() {
