@@ -389,10 +389,10 @@ void printDistanceFrom(int i){
 //Same indexing as PrintDistanceFrom
 void printForceVectorsFrom(int i){
   lcd.print("X: ");
-  lcd.print(CalculateDirectionFromPerpendicularX(lon, lat, endpoints[i].lon, endpoints[i].lat, endpoints[i + 1].lon, endpoints[i + 1].lat), 3);
+  lcd.print(CalculateDirectionPerpendicularX(lon, lat, endpoints[i].lon, endpoints[i].lat, endpoints[i + 1].lon, endpoints[i + 1].lat), 3);
   lcd.setCursor(0,1);
   lcd.print("Y: ");
-  lcd.print(CalculateDirectionFromPerpendiculary(lon, lat, endpoints[i].lon, endpoints[i].lat, endpoints[i + 1].lon, endpoints[i + 1].lat), 3);
+  lcd.print(CalculateDirectionPerpendicularY(lon, lat, endpoints[i].lon, endpoints[i].lat, endpoints[i + 1].lon, endpoints[i + 1].lat), 3);
 }
 
 void loop() {
