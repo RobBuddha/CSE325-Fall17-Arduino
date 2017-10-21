@@ -8,7 +8,7 @@
 #include <Adafruit_GPS.h>
 #include "DFR_Key.h"
 
-Adafruit_GPS GPS(&Serial3);                   // define GPS object
+Adafruit_GPS GPS(&Serial1);                   // define GPS object
 Servo myservo;                                // define servo object
 Adafruit_BNO055 bno = Adafruit_BNO055(55);    // define BNO sensor object
 LiquidCrystal lcd( 8, 9, 4, 5, 6, 7);         // define lcd pins use these default values for OUR LCD
@@ -26,36 +26,41 @@ float HEADING = 0;                              // heading
 boolean usingInterrupt = false;                 // Using interrupt for reading GPS chars
 int carSpeedPin = 2;                            // pin for DC motor (PWM for motor driver)
 float errorHeadingRef = 10.37;                  // Heading error
-long int lat = 33.420887 * 100000;              // GPS latitude in degree decimal * 100000 (CURRENT POSITION)
-long int lon = -111.934089 * 100000;            // GPS latitude in degree decimal * 100000 (CURRENT POSITION)
+double lat = 0;              // GPS latitude in degree decimal * 100000 (CURRENT POSITION)
+double lon = 0;            // GPS latitude in degree decimal * 100000 (CURRENT POSITION)
 long int latDestination = 33.421620 * 100000;   // reference destination (INITIAL DESTINATION)
 long int lonDestination = -111.930118 * 100000; // reference destination (INITIAL DESTINATION)
-double threshhold = 3;				                  // Only correct if within 3m of wall
+double threshold = 10;				                  // Only correct if within 3m of wall
 int localkey = 0;                               // Variable for reading the keypad value
 int ref = 0;                                    // Reference angle, set via keypad.
 int steerPrecision = 10;                        // Variable indicates the step size (in degrees) between steering angles.
-int carSpeed = 0;
+int carSpeed = 255 * 0.1;
 
+// IMPORTANT -- FORMAT FOR LAT AND LONGITUDE NEEDS TO BE DDDMM.MMMMMM
 
+typedef struct coord {
+  double x;
+  double y;
+} Coordinate;
 
 ///////////////////////////////////////// Boundary points  //////////////////////////////////////////
-long int latPoint1 = 33.4218461 * 100000;     // reference destination (Point1)
-long int lonPoint1 =  -111.934683 * 100000;   // reference destination (Point1)
+double latPoint1 = 33.421841;     // reference destination (Point1)
+double lonPoint1 =  -111.934683;   // reference destination (Point1)
 
-long int latPoint2 = 33.421846 * 100000;     // reference destination (Point2)
-long int lonPoint2 =  -111.933382 * 100000;   // reference destination (Point2)
+double latPoint2 = 33.421846 ;     // reference destination (Point2)
+double lonPoint2 =  -111.933382 ;   // reference destination (Point2)
 
-long int latPoint3 = 33.421147 * 100000;     // reference destination (Point3)
-long int lonPoint3 =  -111.9337721 * 100000;   // reference destination (Point3)
+double latPoint3 = 33.421147 ;     // reference destination (Point3)
+double lonPoint3 =  -111.9337721 ;   // reference destination (Point3)
 
-long int latPoint4 = 33.420825 * 100000;     // reference destination (Point4)
-long int lonPoint4 =  -111.933824 * 100000;   // reference destination (Point4)
+double latPoint4 = 33.420825 ;     // reference destination (Point4)
+double lonPoint4 =  -111.933824 ;   // reference destination (Point4)
 
-long int latPoint5 = 33.4208231 * 100000;     // reference destination (Point5)
-long int lonPoint5 =  -111.9341681 * 100000;   // reference destination (Point5)
+double latPoint5 = 33.4208231 ;     // reference destination (Point5)
+double lonPoint5 =  -111.9341681 ;   // reference destination (Point5)
 
-long int latPoint6 = 33.421151 * 100000;     // reference destination (Point6)
-long int lonPoint6 =  -111.934220 * 100000;   // reference destination (Point6)
+double latPoint6 = 33.421151 ;     // reference destination (Point6)
+double lonPoint6 =  -111.934220 ;   // reference destination (Point6)
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 struct point {
   long int lon;
@@ -126,10 +131,10 @@ void setup() {
 
 SIGNAL(TIMER0_COMPA_vect) {                   // Interrupt for reading GPS data. Don't change this...
   char c = GPS.read();
-#ifdef UDR0
-  if (GPSECHO)
-    if (c) UDR0 = c;
-#endif
+  #ifdef UDR0
+    if (GPSECHO)
+      if (c) UDR0 = c;
+  #endif
 }
 
 void useInterrupt(boolean v) {                // Interrupt for reading GPS data. Don't change this...
@@ -154,21 +159,11 @@ ISR(TIMER4_OVF_vect) {      // This function is called every 1 second ....
 
 void GPSRead() {
   if (GPS.newNMEAreceived()) {
-    if (!GPS.parse(GPS.lastNMEA()))
-      return;
+    GPS.parse(GPS.lastNMEA());
   }
-
   if (GPS.fix) {
-    lat = GPS.latitude;
-    lon = GPS.longitude;
-
-    // Create a grid by denoting negative Quadrants.
-    if (GPS.lon == 'W') {
-      lon = lon * -1;
-    }
-    if (GPS.lat == 'S') {
-      lat = lat * -1;
-    }
+    lat = GPS.latitudeDegrees;
+    lon = GPS.longitudeDegrees;
 
     //At this point, we have new values for latitude and longitude
     // Find which walls
@@ -178,59 +173,105 @@ void GPSRead() {
     // compute the direction vector X (call CalculateDirectionPerpendicularX(); )
     // compute the direction vector Y (call CalculateDirectionPerpendicularY(); )
     // Set a new Destination according to direction vectors X & Y
-
-    //6 should be #defined how many lines but im lazy
-    double* distanceToLines = new double[6];
-    distanceToLines[0] = CalculateDistanceFromPerpendicular(lon, lat, lonPoint1, latPoint1, lonPoint2, latPoint2);
-    distanceToLines[1] = CalculateDistanceFromPerpendicular(lon, lat, lonPoint2, latPoint2, lonPoint3, latPoint3);
-    distanceToLines[2] = CalculateDistanceFromPerpendicular(lon, lat, lonPoint3, latPoint3, lonPoint4, latPoint4);
-    distanceToLines[3] = CalculateDistanceFromPerpendicular(lon, lat, lonPoint4, latPoint4, lonPoint5, latPoint5);
-    distanceToLines[4] = CalculateDistanceFromPerpendicular(lon, lat, lonPoint5, latPoint5, lonPoint6, latPoint6);
-    distanceToLines[5] = CalculateDistanceFromPerpendicular(lon, lat, lonPoint6, latPoint6, lonPoint1, latPoint1);
-    int indexes[] = { -1, -1};
-    int size = 0;
+    // Get coordinates of nearest point on each edge
+    Coordinate nearestPointToEdge[6];
+    nearestPointToEdge[0] = CalculateNearestPointToEdge(lon, lat, lonPoint1, latPoint1, lonPoint2, latPoint2);//  _____0____
+    nearestPointToEdge[1] = CalculateNearestPointToEdge(lon, lat, lonPoint2, latPoint2, lonPoint3, latPoint3);//  \        /
+    nearestPointToEdge[2] = CalculateNearestPointToEdge(lon, lat, lonPoint3, latPoint3, lonPoint4, latPoint4);// 5 \      / 1
+    nearestPointToEdge[3] = CalculateNearestPointToEdge(lon, lat, lonPoint4, latPoint4, lonPoint5, latPoint5);//    \    /
+    nearestPointToEdge[4] = CalculateNearestPointToEdge(lon, lat, lonPoint5, latPoint5, lonPoint6, latPoint6);//   4 |  | 2
+    nearestPointToEdge[5] = CalculateNearestPointToEdge(lon, lat, lonPoint6, latPoint6, lonPoint1, latPoint1);//     |__|
+                                                                                                              //       3
+                                                                                                                     
+    
+    // Get distance of nearest point on each edge
+    double distanceToEdge[6];
+    int shortestDistance = 99999999; // Keep track of shortest distance
+    int shortestDistanceIndex = -1; // Keep track of shortest distance index
     for (int i = 0; i < 6; i++) {
-      if (distanceToLines[i] < threshhold) {
-        indexes[size] = i;
-        size++;
+      if (nearestPointToEdge[i].x != -1) {
+        distanceToEdge[i] = CalculateDistanceFromPoint(lon, lat, nearestPointToEdge[i].x, nearestPointToEdge[i].y);
+        //Serial.print(i); Serial.print(" - "); Serial.print(distanceToEdge[i]); Serial.print(" - lon "); Serial.print((float)lon, 5); Serial.print(" - lat "); Serial.println(lat, 5);
+        if (distanceToEdge[i] < shortestDistance) {
+          shortestDistance = distanceToEdge[i];
+          shortestDistanceIndex = i;
+        }
+      } else {
+        distanceToEdge[i] = -1;
+      }
+      Serial.print(i); Serial.print(" - "); Serial.print(distanceToEdge[i]); Serial.print(" - lon "); Serial.print((float)lon, 5); Serial.print(" - lat "); Serial.println(lat, 5);
+    }
+
+
+    // If car is within threshold distance, find if there is another nearby wall (corner case)
+    int shortestDistanceIndex2 = -1;
+    if (shortestDistance < threshold) {
+      for (int i = 0; i < 6; i++) {
+        if (distanceToEdge[i] != -1 && i != shortestDistanceIndex) {
+          if (distanceToEdge[i] < (distanceToEdge[shortestDistanceIndex] + threshold)) {
+            shortestDistanceIndex2 = i;
+          }
+        }
+      }
+      
+      // Approaching Corner
+      if (shortestDistanceIndex2 != -1) {
+        
+      } else { // Appraoching just a wall
+        ref = calculateBearing(nearestPointToEdge[shortestDistanceIndex].x, nearestPointToEdge[shortestDistanceIndex].y, lon, lat);
       }
     }
-    int x = 0;
-    int y = 0;
-    for (int i = 0; i < size; i++) {
-      x += CalculateDirectionPerpendicularX(lon, lat, endpoints[indexes[i]].lon, endpoints[indexes[i]].lat, endpoints[indexes[i] + 1].lon, endpoints[indexes[i] + 1].lat);
-      y += CalculateDirectionPerpendicularY(lon, lat, endpoints[indexes[i]].lon, endpoints[indexes[i]].lat, endpoints[indexes[i] + 1].lon, endpoints[indexes[i] + 1].lat);
-    }
-    //Sanitize
-    //We update ref to drive to
-    ref = atan2(y, x)*180/PI;
   }
 }
-double CalculateDirectionPerpendicularX(double x1, double  y1, double  x2, double  y2, double  x3, double y3) {     // Function to Calculate Horizental vector ---INPUTs:( Current x, Current y, Point i (x). Point i (y), Point j (x), Point j (y) )
-  double Dx;
-  double m = (y3 - y2) / (x3 - x2); //Slope of line
-  double k = y2 - m * x2;      //yint
-  Dx = (x1 + m * y1 - m * k) / (m * m + 1);
-  return Dx - x1;                        // The output of this function is the x component of the force vector from wall defined by (x2,y2)--(x3,y3)
-}
 
-double CalculateDirectionPerpendicularY(double x1, double  y1, double  x2, double  y2, double  x3, double y3) {     // Function to Calculate Vertical vector   ---INPUTs:( Current x, Current y, Point i (x). Point i (y), Point j (x), Point j (y) )
-  double Dy;
-  double m = (y3 - y2) / (x3 - x2); //Slope of line
-  double k = y2 - m * x2;      //yint
-  Dy = (x1 + m * y1 - m * k) / (m * m + 1) + k;
-  return Dy - y1;                       // The output of this function is the x component of the force vector from wall defined by (x2,y2)--(x3,y3)
-}
-
-double CalculateDistanceFromPerpendicular(double x1, double  y1, double  x2, double  y2, double  x3, double y3) {
-  /*  Description: Function calculates
-      Return: Function returns distance from a wall, or -1 if invalid
+Coordinate CalculateNearestPointToEdge(double carX, double  carY, double  x1, double  y1, double  x2, double y2) {
+  /*  Description: Function calculates the distance between the car and the nearest point to an edge
+      Return: Function returns distance from a wall
   */
-  double distance;
-  double m = (y3 - y2) / (x3 - x2);
-  double k = y2 - m * x2;
-  distance = (abs(k + m * x1 - y1)) / (sqrt(1 + m * m));
-  return distance;
+  double slope_1 = (y2 - y1) / (x2 - x1);
+  double yIntercept_1 = y2 - (slope_1 * x2);
+
+  double slope_2 = -1 / slope_1;
+  double yIntercept_2 = carY - (slope_2 * carX);
+
+  double intersection_X = (yIntercept_1 - yIntercept_2) / (slope_2 - slope_1);
+  double intersection_Y = slope_2*intersection_X + yIntercept_2;
+
+  double bigX, littleX, bigY, littleY;
+  
+  if (x1 > x2) {
+    bigX = x1;
+    littleX = x2;
+  } else {
+    bigX = x2;
+    littleX = x1;
+  }
+
+  if (y1 > y2) {
+    bigY = y1;
+    littleY = y2;
+  } else {
+    bigY = y2;
+    littleY = y1;
+  }
+
+  Coordinate coord;
+  coord.x = -1;
+  coord.y = -1;
+
+  if (intersection_X <= bigX && intersection_X >= littleX) {
+    if (intersection_Y <= bigY && intersection_Y >= littleY) {
+      coord.x = intersection_X;
+      coord.y = intersection_Y;
+    }
+  }
+
+  return coord;
+  
+//  double m = (y3 - y2) / (x3 - x2);
+//  double k = y2 - m * x2;
+//  distance = (abs(k + m * x1 - y1)) / (sqrt(1 + m * m));
+//  return distance;
 }
 
 double CalculateDistanceFromPoint(double lon, double lat, double lonDestination, double latDestination) {
@@ -239,10 +280,10 @@ double CalculateDistanceFromPoint(double lon, double lat, double lonDestination,
   */
   double distance;
   float r = 6371000;                          // Earth's radius in meters
-  float lat_rad = lat / 100 * PI / 180;
-  float lon_rad = lon / 100 * PI / 180;
-  float latDst_rad = latDestination / 100 * PI / 180;
-  float lonDst_rad = lonDestination / 100 * PI / 180;
+  float lat_rad = lat * PI / 180;
+  float lon_rad = lon * PI / 180;
+  float latDst_rad = latDestination * PI / 180;
+  float lonDst_rad = lonDestination * PI / 180;
 
   float deltaLat = latDst_rad - lat_rad;      // Change in latitude
   float deltaLon = lonDst_rad - lon_rad;      // Change in longitude
@@ -251,7 +292,22 @@ double CalculateDistanceFromPoint(double lon, double lat, double lonDestination,
   float c = 2 * atan2(sqrt(a), sqrt(1 - a));
 
   distance = r * c;                           // in meters
-  return r * c;
+  return distance;
+}
+
+double calculateBearing(double x1, double y1, double x2, double y2) {
+  double deltaLat = y2 - y1;
+  double deltaLon = x2 - x1;
+  
+  Bearing = (atan2(deltaLat, deltaLon) * 180/ PI) - 90; // OUTPUT: 0° is NORTH, -90° is EAST, -180° is SOUTH, 90/-270° is WEST.
+
+  if (Bearing < -180) {
+    Bearing += 360;                           // OUTPUT: 0° is NORTH, -90° is EAST, +/-180° is SOUTH, 90° is WEST.
+  }
+
+  Bearing = Bearing * -1;                     // FINAL OUTPUT: 0° is NORTH, 90° is EAST, +/-180° is SOUTH, -90° is WEST.
+
+  return Bearing;
 }
 
 void ReadHeading() {
@@ -356,7 +412,7 @@ void CalculateSteering() {                    // Calculate the steering angle ac
   if (STEERANGLE > 135) STEERANGLE = 135;     // The car cannot turn its wheels more than 135 degrees, so cap it here.
   if (STEERANGLE < 45) STEERANGLE = 45;       // The car canno turn its wheels less than 45 degrees, so cap it here.
 
-  Serial.print("Steer Angle: "); Serial.println(STEERANGLE);// Serial.print(" | ");       // Print the steering angle to the Serial Monitor.
+  //Serial.print("Steer Angle: "); Serial.println(STEERANGLE);// Serial.print(" | ");       // Print the steering angle to the Serial Monitor.
 }
 
 void Actuate() {                              // Input: Steering angle - Output: nothing
@@ -383,16 +439,17 @@ void printLocationOnLCD() {
 
 //Print distance from line i clockwise(facing north) starting at University
 void printDistanceFrom(int i){
-  lcd.print(CalculateDistanceFromPerpendicular(lon, lat, endpoints[i].lon, endpoints[i].lat, endpoints[i + 1].lon, endpoints[i + 1].lat));
+  //lcd.print(CalculateDistanceFromPerpendicular(lon, lat, endpoints[i].lon, endpoints[i].lat, endpoints[i + 1].lon, endpoints[i + 1].lat));
+  lcd.print(ref);
 }
 
 //Same indexing as PrintDistanceFrom
 void printForceVectorsFrom(int i){
   lcd.print("X: ");
-  lcd.print(CalculateDirectionPerpendicularX(lon, lat, endpoints[i].lon, endpoints[i].lat, endpoints[i + 1].lon, endpoints[i + 1].lat), 3);
+  //lcd.print(CalculateDirectionPerpendicularX(lon, lat, endpoints[i].lon, endpoints[i].lat, endpoints[i + 1].lon, endpoints[i + 1].lat), 3);
   lcd.setCursor(0,1);
   lcd.print("Y: ");
-  lcd.print(CalculateDirectionPerpendicularY(lon, lat, endpoints[i].lon, endpoints[i].lat, endpoints[i + 1].lon, endpoints[i + 1].lat), 3);
+  //lcd.print(CalculateDirectionPerpendicularY(lon, lat, endpoints[i].lon, endpoints[i].lat, endpoints[i + 1].lon, endpoints[i + 1].lat), 3);
 }
 
 void loop() {
