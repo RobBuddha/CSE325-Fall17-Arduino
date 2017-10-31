@@ -5,8 +5,9 @@ RPLidar lidar;          // define lidar as RPLIDAR Object
 
 void setup() {
   pinMode(RPLIDAR_MOTOR, OUTPUT); // set lidar speed control pin as output
+  pinMode(13, OUTPUT);
   lidar.begin(Serial);            // begin communication with lidar
-  Wire.begin(8);                  // join i2c bus with address 8 as SLAVE
+  Wire.begin(8);                  // join `i2c bus with address 8 as SLAVE
   Wire.onRequest(requestEvent);   // call "requestEvent" function when receives a request
   Wire.onReceive(receiveEvent);   // call "receiveEvent" function when receives a byte
 }
@@ -36,7 +37,6 @@ void loop()
     // filter data (keep only the data in desired range and with desired angle) 
     // COUNT the number of obstacles on LEF and RIGHT side
     // reset obstacle variables every 1 second
-
 
     
   } else {                                                  // if lidar is not responding           // Dont change this......
