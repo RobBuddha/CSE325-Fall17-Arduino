@@ -11,14 +11,14 @@
 #include <RPLidar.h>              // Library for communicating with LIDAR
 
 #define RPLIDAR_MOTOR 3           // motor pin for lidar speed control (D3 on Nano Board)
-#define LIDAR_DISTANCE 3          // Distance threshold to keep value
+#define LIDAR_DISTANCE 1500       // Distance threshold to keep value (millimeters)
 
 RPLidar lidar;                    // define lidar as RPLIDAR Object
 uint8_t left  = 0;                // variable for detected points on left hand side
 uint8_t right = 0;                // variable for detected points on right hand side
 unsigned long time = millis();    // time variable for resetting variables
 uint8_t c1;                       // Variable for received byte from the I2C Bus
-int lidarFOV = 90;                // Lidar Field of View Angle
+int lidarFOV = 36;                // Lidar Field of View Angle (degrees)
 
 /* 360-FOV/2 *   0   * FOV/2
  *            \     /
@@ -63,19 +63,26 @@ void loop()
     // filter data (keep only the data in desired range and with desired angle)
     // COUNT the number of obstacles on LEFT and RIGHT side
     // reset obstacle variables every 1 second
-    float distance = lidar.getCurrentPoint().distance;
-    float angle = lidar.getCurrentPoint().angle;
+    float distance = lidar.getCurrentPoint().distance; // Millimeters
+    float angle = lidar.getCurrentPoint().angle; // Degrees - 0 is straight, 90 is right, 180 is rear, 270 is left
 
-    if (distance <= LIDAR_DISTANCE) {
-      if (angle > (360-(lidarFOV/2)) {
-        left++;
-      } else if (angle < (lidarFOV/2)) {
-        right++;
+    if (lidar.getCurrentPoint().startBit) {
+      // A new scan is happening, wait for scan to finish
+      // If distance or angle were read now, it would be the previous values since they haven't updated yet.
+    } else {
+      if (distance <= LIDAR_DISTANCE) {
+        if (angle > (360-(lidarFOV/2))) {
+          left++;
+        } else if (angle < (lidarFOV/2)) {
+          right++;
+        }
       }
     }
 
     unsigned long newTime = millis();
     if ((newTime-time) >= 1000) {
+      left = 0;
+      right = 0;
       time = newTime;
     }
   } else {
@@ -89,5 +96,3 @@ void loop()
     }
   }
 }
-
-

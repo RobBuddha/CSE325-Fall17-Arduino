@@ -21,8 +21,8 @@ LiquidCrystal lcd( 8, 9, 4, 5, 6, 7); // define lcd pins use these default value
 // Global variables that change across functions
 int STEERANGLE = 90;        // servo initial angle (range is 0:180)
 float HEADING = 0;          // Heading in degree
-int LidarRight;             // LIDAR left
-int LidarLeft;              // LIDAR right
+uint8_t LidarRight;             // LIDAR left
+uint8_t LidarLeft;              // LIDAR right
 boolean usingInterrupt = false;
 int carSpeedPin = 2;              // pin for DC motor (PWM for motor driver). don't use other pins....
 float errorHeadingRef = 0;        // error
@@ -37,7 +37,7 @@ void setup() {
   myservo.attach(44);     // servo is connected to pin 44     (All pins are used by LCD except 2. Pin 2 is used for DC motor)
   lcd.begin( 16, 2 );     // LCD type is 16x2 (col & row)
 
-  ///Setting the reference (Lat and Lon)///
+  // Setting the reference (Lat and Lon) //
   localkey = 0;
   while (localkey != 1) {
     lcd.clear();
@@ -47,9 +47,12 @@ void setup() {
     lcd.print("to save dest.");
     delay(100);
   }
+
   GPSRead();
-  latDestination = lat;     // saving the destiantion point
-  lonDestination = lon;     // saving the destiantion point
+  latDestination = lat;     // saving the destination point
+  lonDestination = lon;     // saving the destination point
+
+  // Waiting to activate //
   localkey = 0;
   while (localkey != 1) {
     lcd.clear();
@@ -90,6 +93,8 @@ void setup() {
   GPS.sendCommand(PMTK_SET_NMEA_UPDATE_1HZ);   // 1 Hz update rate, don't use higher rates
   GPS.sendCommand(PGCMD_ANTENNA);               // notify if antenna is detected
   useInterrupt(true);                           // use interrupt for reading chars of GPS sentences (From Serial Port)
+
+  Wire.begin(); // Join I2C Bus as master
 }
 
 SIGNAL(TIMER0_COMPA_vect) {       // don't change this !!
@@ -100,7 +105,7 @@ SIGNAL(TIMER0_COMPA_vect) {       // don't change this !!
 #endif
 }
 
-void useInterrupt(boolean v) {    // enable inttrupt for GPS, don't change this!!
+void useInterrupt(boolean v) {    // enable interrupt for GPS, don't change this!!
   if (v) {
     OCR0A = 0xAF;               // Timer0 is already used for millis() - we'll just interrupt somewhere
     TIMSK0 |= _BV(OCIE0A);      // in the middle by Output Compare Register A (OCR0A) and "TIMER0_COMPA_vect" function is called
@@ -119,6 +124,13 @@ ISR(TIMER4_OVF_vect) {  // Timer interrupt for reading GPS DATA
 
 void GPSRead() {
   // read GPS data
+  if (GPS.newNMEAreceived()) {
+    GPS.parse(GPS.lastNMEA());
+  }
+  if (GPS.fix) {
+    lat = GPS.latitudeDegrees;
+    lon = GPS.longitudeDegrees;
+  }
 }
 
 
@@ -135,12 +147,12 @@ void CalculateSteer() {
   // Calculate Steer angle based on GPS data and IMU
 }
 
-void SetCarDirection() {    // Input: Lidar data
+void SetCarDirection() {  // Input: Lidar data
   // Set Steering angle,
   // If any obstacle is detected by Lidar, Ignore steering angle and turn left or right based on observation
 }
 
-void SetCarSpeed() {  // Input: GPS data
+void SetCarSpeed() {      // Input: GPS data
   // set speed,
   // if destination is within 5 meters of current position, set speed to zero.
 }
@@ -150,6 +162,32 @@ void ReadLidar() {    // Output: Lidar Data
   // you should request data from Nano and read the number of obstacle (within the range) on your rightside and leftside
   // Then, you can decide to either do nothing, turn left or turn right based on threshold. For instance, 0 = do nothing, 1= left and 2 = right
 
+  // Request Left Data
+  uint8_t requestType = 1;
+  byte request = requestType & 0xFF;
+  Wire.beginTransmission(8);
+  Wire.write(request);
+  Wire.endTransmission();
+
+  Wire.requestFrom(8, 1); // Request 1 byte from nano
+  while (Wire.available()) {
+    LidarLeft = Wire.read();
+  }
+  
+  //Request Right Data
+  requestType = 2;
+  request = requestType & 0xFF;
+  Wire.beginTransmission(8);
+  Wire.write(request);
+  Wire.endTransmission();
+
+  Wire.requestFrom(8, 1); // Request 1 byte from nano
+  while (Wire.available()) {
+    LidarRight = Wire.read();
+  }
+
+  Serial.print("Left  - "); Serial.println(LidarLeft);
+  Serial.print("Right - "); Serial.println(LidarRight);
 }
 
 ISR(TIMER1_OVF_vect) {        // function will be call every 0.1 seconds
@@ -164,7 +202,7 @@ ISR(TIMER1_OVF_vect) {        // function will be call every 0.1 seconds
 
 
 void printHeadingOnLCD() {
-
+  lcd.print("Sending");
 }
 
 void printLocationOnLCD() {
@@ -184,5 +222,6 @@ void loop() {
   // Pring data to LCD in order to debug your program!
   printHeadingOnLCD();
   printObstacleOnLCD();
-  delay(100);
+  ReadLidar();
+  delay(1000);
 }
