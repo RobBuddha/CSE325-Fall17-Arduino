@@ -18,13 +18,19 @@ uint8_t left  = 0;                // variable for detected points on left hand s
 uint8_t right = 0;                // variable for detected points on right hand side
 unsigned long time = millis();    // time variable for resetting variables
 uint8_t c1;                       // Variable for received byte from the I2C Bus
-int lidarFOV = 36;                // Lidar Field of View Angle (degrees)
+int lidarFOV = 40;                // Lidar Field of View Angle (degrees)
 
-/* 360-FOV/2 *   0   * FOV/2
+/*
+ *         LIDAR_DISTANCE
+ *           ---------
+ * 360-FOV/2 *   0°  * FOV/2
  *            \     /
  *             \FOV/
  *              \ /
- *               * Lidar
+ *   270° ------ * Lidar -- 90°
+ *               |
+ *               |
+ *              180°
  */
 
 void setup() {
@@ -56,8 +62,7 @@ void requestEvent() {
   Wire.write(sendArr);
 }
 
-void loop()
-{
+void loop() {
   if (IS_OK(lidar.waitPoint())) { // if lidar is working properly (waiting time less than timeout)
     // read angle and distance of the obstacle
     // filter data (keep only the data in desired range and with desired angle)
@@ -70,23 +75,25 @@ void loop()
       // A new scan is happening, wait for scan to finish
       // If distance or angle were read now, it would be the previous values since they haven't updated yet.
     } else {
-      if (distance <= LIDAR_DISTANCE) {
+      if (distance > 0 && distance < LIDAR_DISTANCE) {
+        // Need to make sure distance is >0 too. If lidar cannot detect distance, it is stored as -1. These are bad data points.
         if (angle > (360-(lidarFOV/2))) {
-          left++;
+          left++; // Object on left hand side
         } else if (angle < (lidarFOV/2)) {
-          right++;
+          right++; // Object on right hand side
         }
       }
     }
 
     unsigned long newTime = millis();
     if ((newTime-time) >= 1000) {
+      // Reset data values every second
       left = 0;
       right = 0;
       time = newTime;
     }
   } else {
-    // If LIDAR is not responding, stop the motor, try to detect it, and start start the LIDAR again
+    // If LIDAR is not responding, stop the lidar spinning motor, try to detect it, and start start the LIDAR again
     analogWrite(RPLIDAR_MOTOR, 0);                          //stop the rplidar motor                // Dont change this......
     rplidar_response_device_info_t info;                    // try to detect RPLIDAR...             // Dont change this......
     if (IS_OK(lidar.getDeviceInfo(info, 100))) {            // if detected,                         // Dont change this......
