@@ -24,7 +24,7 @@ int localkey = 0;                                 // variable for reading lcd bu
 boolean usingInterrupt = false;                   // interrupt variable
 
 // Heading variables
-float errorHeadingRef = 0;                        // heading error for Tempe
+float errorHeadingRef = 10.3;                     // heading error for Tempe
 float headingAngle = 0;                           // angle where the car is currently facing relative to North
 float bearingAngle = 0;                           // angle where the car must go relative to car's current position
 
@@ -108,7 +108,7 @@ void setup() {
   TIMSK4 |= (1 << TOIE4);   // enable timer compare interrupt
   interrupts();             // enable intrrupt flag again
 
-  Wire.begin(); // Join I2C Bus as master
+  //Wire.begin(); // Join I2C Bus as master
 }
 
 SIGNAL(TIMER0_COMPA_vect) {       // don't change this !!
