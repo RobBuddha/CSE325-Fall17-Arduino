@@ -8,34 +8,54 @@
 #include <Adafruit_GPS.h>
 #include "DFR_Key.h"
 
-Adafruit_GPS GPS(&Serial3);                   // define GPS object DO NOT USE Serial0
-DFR_Key keypad;                               // define keypad object
-Servo myservo;                                // define servo object
-Adafruit_BNO055 bno = Adafruit_BNO055(55);    // define BNO sensor object
+#define GPSECHO false                             // echo GPS Sentence 
+#define THRESHOLD 10                              // threshold for Obstacle avoidance (number of obstacles)
+#define degMultiplier 100000                      // used to convert floating point degrees to long int
 
-#define GPSECHO  false                        // echo GPS Sentence 
-#define Threshold 5                           // Threshold for Obstacle avoidance (number of obstacles)
+Adafruit_GPS GPS(&Serial2);                       // define GPS object DO NOT USE Serial0
+DFR_Key keypad;                                   // define keypad object
+Servo myservo;                                    // define servo object
+Adafruit_BNO055 bno = Adafruit_BNO055(55);        // define BNO sensor object
 
-LiquidCrystal lcd( 8, 9, 4, 5, 6, 7); // define lcd pins use these default values for OUR LCD
+LiquidCrystal lcd( 8, 9, 4, 5, 6, 7);             // define lcd pins use these default values for OUR LCD
 
 // Global variables that change across functions
-int STEERANGLE = 90;        // servo initial angle (range is 0:180)
-float HEADING = 0;          // Heading in degree
-uint8_t LidarRight;             // LIDAR left
-uint8_t LidarLeft;              // LIDAR right
-boolean usingInterrupt = false;
-int carSpeedPin = 2;              // pin for DC motor (PWM for motor driver). don't use other pins....
-float errorHeadingRef = 0;        // error
-long int lat;                     // GPS latitude in degree decimal * 100000   |     we multiply decimal degree by 100000 to convert it to meter  https://en.wikipedia.org/wiki/Decimal_degrees
-long int lon;                     // GPS latitude in degree decimal * 100000   |     0.00001 decimal degree is equal to 1.0247 m at 23 degree N/S
-long int latDestination = 33.425891 * 100000;       // define an initial reference Latitude of destination
-long int lonDestination =  -111.940458 * 100000;    // define an initial reference Longitude of destination
-float Bearing = 0;                                  // initialize bearing
-int localkey = 0;                                   // var
+int localkey = 0;                                 // variable for reading lcd button values
+boolean usingInterrupt = false;                   // interrupt variable
+
+// Heading variables
+float errorHeadingRef = 0;                        // heading error for Tempe
+float headingAngle = 0;                           // angle where the car is currently facing relative to North
+float bearingAngle = 0;                           // angle where the car must go relative to car's current position
+
+// Actuation variables
+int steerAngle = 90;                              // servo angle controlling steering (0 to 180, 0 is left, 90 is straight, 180 is right)
+int carSpeedPin = 2;                              // pin for DC motor (PWM for motor driver).
+int steerPrecision = 5;                           // indicates the step size between steering angles (in degrees)
+int carSpeed = 0;                                 // pwm value for speed of the car (0 - 255)
+float distance;                                   // distance from target
+int stopDistance = 5;                             // distance from destination at which car will stop
+boolean shouldActuate = true;                     // determines if car should keep actuating or not
+
+// Lidar variables
+uint8_t lidarRight;                               // number of points detected by lidar which are to the RIGHT of the car
+uint8_t lidarLeft;                                // number of points detected by lidar which are to the LEFT of the car
+
+// GPS variables
+float lat;                                     // GPS latitude in degree decimal * 100000 | we multiply decimal degree by 100000 to convert it to meter  https://en.wikipedia.org/wiki/Decimal_degrees
+float lon;                                     // GPS latitude in degree decimal * 100000 | 0.00001 decimal degree is equal to 1.0247 m at 23 degree N/S
+float latDestination;                           // define an initial reference Latitude of destination
+float lonDestination;                           // define an initial reference Longitude of destination
 
 void setup() {
   myservo.attach(44);     // servo is connected to pin 44     (All pins are used by LCD except 2. Pin 2 is used for DC motor)
   lcd.begin( 16, 2 );     // LCD type is 16x2 (col & row)
+
+  GPS.begin(9600);
+  GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);   // ask GPS to send RMC & GGA sentences
+  GPS.sendCommand(PMTK_SET_NMEA_UPDATE_1HZ);   // 1 Hz update rate, don't use higher rates
+  GPS.sendCommand(PGCMD_ANTENNA);               // notify if antenna is detected
+  useInterrupt(true);                           // use interrupt for reading chars of GPS sentences (From Serial Port)
 
   // Setting the reference (Lat and Lon) //
   localkey = 0;
@@ -69,8 +89,8 @@ void setup() {
     Serial.print("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
     while (1);
   }
-  byte c_data[22] = {0, 0, 0, 0, 0, 0, 209, 4, 9, 5, 9, 6, 0, 0, 255, 255, 255, 255, 232, 3, 1, 3};               // Use your CALIBRATION DATA
-  bno.setCalibData(c_data);                                                                                       // SET CALIBRATION DATA
+  byte c_data[22] = {0, 0, 0, 0, 0, 0, 34, 0, 89, 0, 133, 0, 255, 255, 0, 0, 1, 0, 232, 3, 29, 3};                        // Use your CALIBRATION DATA
+  bno.setCalibData(c_data);                                                                                               // SET CALIBRATION DATA
   bno.setExtCrystalUse(true);
 
   // set timer interrupts
@@ -87,12 +107,6 @@ void setup() {
   TCCR4B |= (1 << CS42);    // 256 prescaler
   TIMSK4 |= (1 << TOIE4);   // enable timer compare interrupt
   interrupts();             // enable intrrupt flag again
-
-  GPS.begin(9600);
-  GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);   // ask GPS to send RMC & GGA sentences
-  GPS.sendCommand(PMTK_SET_NMEA_UPDATE_1HZ);   // 1 Hz update rate, don't use higher rates
-  GPS.sendCommand(PGCMD_ANTENNA);               // notify if antenna is detected
-  useInterrupt(true);                           // use interrupt for reading chars of GPS sentences (From Serial Port)
 
   Wire.begin(); // Join I2C Bus as master
 }
@@ -116,10 +130,11 @@ void useInterrupt(boolean v) {    // enable interrupt for GPS, don't change this
   }
 }
 
-ISR(TIMER4_OVF_vect) {  // Timer interrupt for reading GPS DATA
-  sei();        //   reset interrupt flag
-  TCNT4  = 336; //   re-initialize timer value
-  GPSRead();    //   read GPS data
+ISR(TIMER4_OVF_vect) {  // Timer interrupt for reading GPS and Lidar data (called every 1 second)
+  sei();                // reset interrupt flag
+  TCNT4  = 336;         // re-initialize timer value
+  GPSRead();            // read GPS data
+  ReadLidar();          // read Lidar data
 }
 
 void GPSRead() {
@@ -130,31 +145,184 @@ void GPSRead() {
   if (GPS.fix) {
     lat = GPS.latitudeDegrees;
     lon = GPS.longitudeDegrees;
+
+    //Serial.print("Lat - "); Serial.println(lat, 7);
+    //Serial.print("Lon - "); Serial.println(lon, 7);
   }
 }
 
+void ReadHeading() {
+  // Function computes the direction that the car is facing
+  imu::Vector<3> euler = bno.getVector(Adafruit_BNO055::VECTOR_EULER);
+  
+  headingAngle = euler.x();                                  // Grab euler direction output
+  
+  headingAngle -= errorHeadingRef;                           // Factors in error in headingAnglefor Tempe. 
+  
+  // Corrects any values which exceed 180 degrees.
+  if (headingAngle > 180) headingAngle -= 360;
 
-void ReadHeading()
-{
-  // calculate HEADING
+  //Serial.print("Heading - "); Serial.println(headingAngle);
+  
+  // FINAL OUTPUT: 0° is NORTH, 90° is EAST, +/-180° is SOUTH, -90° is WEST.
 }
 
 void CalculateBearing() {
-  // Calculate Bearing
+  // Function calculates the direction the car needs to go based on GPS data.
+  // bearingAngle will be calculated as the angle from the car's location to the reference point.
+  // Angle will be the degrees from North.
+  //
+  //             |     |
+  //             |   ° * Car
+  //             |   /
+  //             | /
+  //   ----------*----------
+  //             |Ref
+  //             |
+  //             |
+  //
+  // Y = Latitude, X = Longitude
+  // Output of atan2: 90° is NORTH, 0° is EAST, -90° is SOUTH, +/-180° is WEST.
+
+  float deltaLat = latDestination - lat;
+  float deltaLon = lonDestination - lon;
+  
+  bearingAngle = (atan2(deltaLat, deltaLon) * 180 / PI) - 90; // OUTPUT: 0° is NORTH, -90° is EAST, -180° is SOUTH, 90/-270° is WEST.
+
+  if (bearingAngle < -180) {
+    bearingAngle += 360;                           // OUTPUT: 0° is NORTH, -90° is EAST, +/-180° is SOUTH, 90° is WEST.
+  }
+
+  bearingAngle = bearingAngle * -1;                     // FINAL OUTPUT: 0° is NORTH, 90° is EAST, +/-180° is SOUTH, -90° is WEST.
+
+  //Serial.print("Bearing - "); Serial.println(bearingAngle);
 }
 
 void CalculateSteer() {
-  // Calculate Steer angle based on GPS data and IMU
+  // Calculate steering angle (steerAngle) based on GPS data (lat, lon, latDestination, lonDestination) and IMU (heading)
+  int leftBound, rightBound, backBound;       // Create variables to determine the bounds of <Bearing>. Range is (-179) - 180.
+  
+  if (bearingAngle < -90) { // Between -180 and -90 (does not include -180 or -90).
+    // Alter the bounds to accomodate for these angles.
+    leftBound = bearingAngle + 270;
+    rightBound = bearingAngle + 90;
+    backBound = bearingAngle + 180;
+    
+    if (headingAngle <= rightBound) {                                                          // Change the angle of steering by an increment of 10
+      steerAngle = (int)((rightBound - headingAngle)/steerPrecision) * steerPrecision;         // degrees, so as to accurately drive in the "desired
+    } else if (headingAngle >= leftBound) {                                                    // direction."
+      steerAngle = (int)((rightBound - headingAngle + 360)/steerPrecision) * steerPrecision;
+    } else if (headingAngle <= backBound) {                                                    // If the car is facing nearly opposite of the "desired
+      steerAngle = 0;                                                                     // direction," but still on the left, start turning left
+                                                                                          // until the next reading.
+                                                                                          
+    } else {                                                                              // Else, start turning right until the next magnetometer
+      steerAngle = 180;                                                                   // reading.
+    }
+    
+  } else if (bearingAngle < 0) { // Between -90 and 0 (includes -90 but not 0).
+    // Alter the bounds to accomodate for these angles.
+    leftBound = bearingAngle - 90;
+    rightBound = bearingAngle + 90;
+    backBound = bearingAngle + 180;
+    
+    if (headingAngle >= leftBound && headingAngle <= rightBound) {                                  // If the car is between the left and right bounds,
+      steerAngle = (int)((rightBound - headingAngle)/steerPrecision) * steerPrecision;         // change the angle of steering by an increment of 10 degrees,
+                                                                                          // so as to accurately drive in the "desired direction".
+                                                                                          
+    } else if (headingAngle <= backBound && headingAngle >= rightBound) {                           // If the car is outside the back and right bounds, start
+      steerAngle = 0;                                                                     // turning completely left until the next magnetometer reading.
+      
+    } else {                                                                              // Else, the car starts turning completely right until the
+      steerAngle = 180;                                                                   // next magnetometer reading.
+    }
+  } else if (bearingAngle <= 90) { // Between 0 and 90 (includes 0 and 90).
+    // Alter the bounds to accomodate for these angles.
+    leftBound = bearingAngle - 90;
+    rightBound = bearingAngle + 90;
+    backBound = bearingAngle - 180;
+    
+    if (headingAngle >= leftBound && headingAngle <= rightBound) {                                  //     If the car is between the left and right bounds, change
+      steerAngle = (int)((rightBound - headingAngle)/steerPrecision) * steerPrecision;         // the angle of steering by an increment of 10 degrees, so as to
+    // accurately drive in the "desired direction."
+    
+    } else if (headingAngle >= backBound && headingAngle <= leftBound) {                            //     If the car is outside the back and left bounds, start
+      steerAngle = 180;                                                                   // turning completely right until the next magnetometer reading.
+    
+    } else {                                                                              //     Else, the car starts turning completely left until the
+      steerAngle = 0;                                                                     // next magnetometer reading.
+    }
+  
+  } else if (bearingAngle <= 180) { // Between 90 and 180 (includes 180 but not 90).
+    // Alter the bounds to accomodate for these angles.
+    leftBound = bearingAngle - 90;
+    rightBound = bearingAngle - 270;
+    backBound = bearingAngle - 180;
+    
+    if (headingAngle >= leftBound) {                                                           //     Change the angle of steering by an increment of 10 degrees,
+      steerAngle = (int)((rightBound - headingAngle + 360)/steerPrecision) * steerPrecision;   //  so as to accurately drive in the "desired direction".
+    } else if (headingAngle <= rightBound) {                                             
+      steerAngle = (int)((rightBound - headingAngle)/steerPrecision) * steerPrecision;
+    } else if (headingAngle > rightBound && headingAngle <= backBound) {                            //     If the car is outside the right bound and the back bound,
+      steerAngle = 0;                                                                     // start turning completely left until the next magnetometer reading.
+      
+    } else {                                                                              //     Else, the car starts turning completely right until the next
+      steerAngle = 180;                                                                   // magnetometer reading.
+    }
+  }
+  
+  if (steerAngle > 135) steerAngle = 135;     // The car cannot turn its wheels more than 135 degrees, so cap it here.
+  if (steerAngle < 45) steerAngle = 45;       // The car canno turn its wheels less than 45 degrees, so cap it here.
 }
 
-void SetCarDirection() {  // Input: Lidar data
-  // Set Steering angle,
-  // If any obstacle is detected by Lidar, Ignore steering angle and turn left or right based on observation
+void SetCarDirection() {
+  // Set steering angle (steerAngle) based on lidar data (lidarRight and lidarLeft). If any obstacle is detected by lidar,
+  // ignore steering angle and turn left or right based on lidar data.
+
+  if (lidarRight > THRESHOLD || lidarLeft > THRESHOLD) {
+    // Lidar has detected an obstacle ahead of the car, must change steering angle
+    int diff = lidarRight - lidarLeft; // positive values indicate object on right, negative values indicate object on left
+
+/*
+    if (diff < -20) {
+      // Far left
+      steerAngle = 110;
+    } else if (diff < 0) {
+      // Center left
+      steerAngle = 135;
+    } else if (diff < 20) {
+      // Center right
+      steerAngle = 45;
+    } else {
+      // Far right
+      steerAngle = 70;
+    }
+*/
+    if (diff < 0) {
+      steerAngle = 135;
+    } else {
+      steerAngle = 45;
+    }
+    
+  }
 }
 
-void SetCarSpeed() {      // Input: GPS data
+void CalculateDistance() {      // Input: GPS data
   // set speed,
   // if destination is within 5 meters of current position, set speed to zero.
+  float r = 6371000;                          // Earth's radius in meters
+  float lat_rad = lat * PI/180;
+  float lon_rad = lon * PI/180;
+  float latDst_rad = latDestination * PI/180;
+  float lonDst_rad = lonDestination * PI/180;
+
+  float deltaLat = latDst_rad - lat_rad;      // Change in latitude
+  float deltaLon = lonDst_rad - lon_rad;      // Change in longitude
+
+  float a = sin(deltaLat/2) * sin(deltaLat/2) + cos(lat_rad) * cos(latDst_rad) * sin(deltaLon/2) * sin(deltaLon/2);
+  float c = 2 * atan2(sqrt(a), sqrt(1-a));
+  
+  distance = r * c;                           // in meters
 }
 
 void ReadLidar() {    // Output: Lidar Data
@@ -171,7 +339,7 @@ void ReadLidar() {    // Output: Lidar Data
 
   Wire.requestFrom(8, 1); // Request 1 byte from nano
   while (Wire.available()) {
-    LidarLeft = Wire.read();
+    lidarLeft = Wire.read();
   }
   
   //Request Right Data
@@ -183,11 +351,24 @@ void ReadLidar() {    // Output: Lidar Data
 
   Wire.requestFrom(8, 1); // Request 1 byte from nano
   while (Wire.available()) {
-    LidarRight = Wire.read();
+    lidarRight = Wire.read();
   }
 
-  Serial.print("Left  - "); Serial.println(LidarLeft);
-  Serial.print("Right - "); Serial.println(LidarRight);
+  //Serial.print("Left  - "); Serial.println(lidarLeft);
+  //Serial.print("Right - "); Serial.println(lidarRight);
+}
+
+void Actuate() {
+  if (shouldActuate) {
+    if (distance < stopDistance) {
+      carSpeed = 0;
+      //shouldActuate = false;
+    } else {
+      carSpeed = 25;
+    }
+    analogWrite(carSpeedPin, carSpeed);
+    myservo.write(steerAngle);
+  }
 }
 
 ISR(TIMER1_OVF_vect) {        // function will be call every 0.1 seconds
@@ -197,31 +378,14 @@ ISR(TIMER1_OVF_vect) {        // function will be call every 0.1 seconds
   CalculateBearing();
   CalculateSteer();
   SetCarDirection();
-  SetCarSpeed();
-}
-
-
-void printHeadingOnLCD() {
-  lcd.print("Sending");
-}
-
-void printLocationOnLCD() {
-
-}
-
-void printDistanceOnLCD() {
-
-}
-
-void printObstacleOnLCD() {
-
+  CalculateDistance();
+  Actuate();
 }
 
 void loop() {
-  lcd.clear();      // clear lcd
-  // Pring data to LCD in order to debug your program!
-  printHeadingOnLCD();
-  printObstacleOnLCD();
-  ReadLidar();
-  delay(1000);
+//  lcd.clear();      // clear lcd
+//  // Pring data to LCD in order to debug your program!
+//  printHeadingOnLCD();
+//  printObstacleOnLCD();
+  //delay(500);
 }
