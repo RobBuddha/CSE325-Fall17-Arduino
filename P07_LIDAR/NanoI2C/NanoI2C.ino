@@ -11,7 +11,7 @@
 #include <RPLidar.h>              // Library for communicating with LIDAR
 
 #define RPLIDAR_MOTOR 3           // motor pin for lidar speed control (D3 on Nano Board)
-#define LIDAR_DISTANCE 1500       // Distance threshold to keep value (millimeters)
+#define LIDAR_DISTANCE 2000       // Distance threshold to keep value (millimeters)
 
 RPLidar lidar;                    // define lidar as RPLIDAR Object
 uint8_t left  = 0;                // variable for detected points on left hand side

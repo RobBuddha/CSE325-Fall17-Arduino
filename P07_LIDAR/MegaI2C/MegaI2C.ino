@@ -10,7 +10,6 @@
 
 #define GPSECHO false                             // echo GPS Sentence 
 #define THRESHOLD 10                              // threshold for Obstacle avoidance (number of obstacles)
-#define degMultiplier 100000                      // used to convert floating point degrees to long int
 
 Adafruit_GPS GPS(&Serial2);                       // define GPS object DO NOT USE Serial0
 DFR_Key keypad;                                   // define keypad object
@@ -24,7 +23,7 @@ int localkey = 0;                                 // variable for reading lcd bu
 boolean usingInterrupt = false;                   // interrupt variable
 
 // Heading variables
-float errorHeadingRef = 10.3;                     // heading error for Tempe
+float errorHeadingRef = -10.3;                     // heading error for Tempe
 float headingAngle = 0;                           // angle where the car is currently facing relative to North
 float bearingAngle = 0;                           // angle where the car must go relative to car's current position
 
@@ -34,22 +33,23 @@ int carSpeedPin = 2;                              // pin for DC motor (PWM for m
 int steerPrecision = 5;                           // indicates the step size between steering angles (in degrees)
 int carSpeed = 0;                                 // pwm value for speed of the car (0 - 255)
 float distance;                                   // distance from target
-int stopDistance = 3;                             // distance from destination at which car will stop
-boolean shouldActuate = true;                     // determines if car should keep actuating or not
+int stopDistance = 5;                             // distance from destination at which car will stop
+boolean shouldActuate = false;                    // determines if car should keep actuating or not
 
 // Lidar variables
 uint8_t lidarRight;                               // number of points detected by lidar which are to the RIGHT of the car
 uint8_t lidarLeft;                                // number of points detected by lidar which are to the LEFT of the car
 
 // GPS variables
-float lat;                                     // GPS latitude in degree decimal * 100000 | we multiply decimal degree by 100000 to convert it to meter  https://en.wikipedia.org/wiki/Decimal_degrees
-float lon;                                     // GPS latitude in degree decimal * 100000 | 0.00001 decimal degree is equal to 1.0247 m at 23 degree N/S
-float latDestination;                           // define an initial reference Latitude of destination
-float lonDestination;                           // define an initial reference Longitude of destination
+float lat;                                        // GPS latitude in degree decimal * 100000 | we multiply decimal degree by 100000 to convert it to meter  https://en.wikipedia.org/wiki/Decimal_degrees
+float lon;                                        // GPS latitude in degree decimal * 100000 | 0.00001 decimal degree is equal to 1.0247 m at 23 degree N/S
+float latDestination;                             // define an initial reference Latitude of destination
+float lonDestination;                             // define an initial reference Longitude of destination
 
 void setup() {
   myservo.attach(44);     // servo is connected to pin 44     (All pins are used by LCD except 2. Pin 2 is used for DC motor)
   lcd.begin( 16, 2 );     // LCD type is 16x2 (col & row)
+  Serial.begin(9600);     // serial for monitoring
 
   GPS.begin(9600);
   GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);   // ask GPS to send RMC & GGA sentences
@@ -57,33 +57,6 @@ void setup() {
   GPS.sendCommand(PGCMD_ANTENNA);               // notify if antenna is detected
   useInterrupt(true);                           // use interrupt for reading chars of GPS sentences (From Serial Port)
 
-  // Setting the reference (Lat and Lon) //
-  localkey = 0;
-  while (localkey != 1) {
-    lcd.clear();
-    localkey = keypad.getKey();
-    lcd.print("Press Select");
-    lcd.setCursor(0, 1);
-    lcd.print("to save dest.");
-    delay(100);
-  }
-
-  GPSRead();
-  latDestination = lat;     // saving the destination point
-  lonDestination = lon;     // saving the destination point
-
-  // Waiting to activate //
-  localkey = 0;
-  while (localkey != 1) {
-    lcd.clear();
-    localkey = keypad.getKey();
-    lcd.print("Press Select");
-    lcd.setCursor(0, 1);
-    lcd.print("to drive!");
-    delay(100);
-  }
-
-  Serial.begin(9600);     // serial for monitoring
   if (!bno.begin(Adafruit_BNO055::OPERATION_MODE_NDOF)) {
     Serial.print("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
     while (1);
@@ -106,7 +79,43 @@ void setup() {
   TCCR4B |= (1 << CS42);    // 256 prescaler
   TIMSK4 |= (1 << TOIE4);   // enable timer compare interrupt
   interrupts();             // enable intrrupt flag again
-  //Wire.begin(); // Join I2C Bus as master
+/*
+  while (lat == 0 || lon == 0) { // No GPS signal yet
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("No GPS Signal");                   // Alert user that GPS signal has not yet been obtained.
+    delay(1000);
+  }*/
+
+  // Setting the reference (Lat and Lon) //
+  localkey = 0;
+  while (localkey != 1) {
+    lcd.clear();
+    localkey = keypad.getKey();
+    lcd.print("Press Select");
+    lcd.setCursor(0, 1);
+    lcd.print("to save dest.");
+    delay(100);
+  }
+
+  GPSRead();
+  latDestination = lat;     // saving the destination point
+  lonDestination = lon;     // saving the destination point
+  Serial.print("Lat Destination - "); Serial.println(latDestination, 7);
+  Serial.print("Lon Destination - "); Serial.println(lonDestination, 7);
+
+  // Waiting to activate //
+  localkey = 0;
+  while (localkey != 1) {
+    lcd.clear();
+    localkey = keypad.getKey();
+    lcd.print("Press Select");
+    lcd.setCursor(0, 1);
+    lcd.print("to drive!");
+    delay(100);
+  }
+
+  shouldActuate = false;
 }
 
 SIGNAL(TIMER0_COMPA_vect) {       // don't change this !!
@@ -117,13 +126,13 @@ SIGNAL(TIMER0_COMPA_vect) {       // don't change this !!
 #endif
 }
 
-void useInterrupt(boolean v) {    // enable interrupt for GPS, don't change this!!
+void useInterrupt(boolean v) {  // enable interrupt for GPS, don't change this!!
   if (v) {
     OCR0A = 0xAF;               // Timer0 is already used for millis() - we'll just interrupt somewhere
     TIMSK0 |= _BV(OCIE0A);      // in the middle by Output Compare Register A (OCR0A) and "TIMER0_COMPA_vect" function is called
     usingInterrupt = true;
   } else {
-    TIMSK0 &= ~_BV(OCIE0A); // do not call the interrupt function COMPA anymore
+    TIMSK0 &= ~_BV(OCIE0A);     // do not call the interrupt function COMPA anymore
     usingInterrupt = false;
   }
 }
@@ -138,14 +147,16 @@ ISR(TIMER4_OVF_vect) {  // Timer interrupt for reading GPS and Lidar data (calle
 void GPSRead() {
   // read GPS data
   if (GPS.newNMEAreceived()) {
-    GPS.parse(GPS.lastNMEA());
+    if (!GPS.parse(GPS.lastNMEA())) {
+      return;
+    }
   }
   if (GPS.fix) {
     lat = GPS.latitudeDegrees;
     lon = GPS.longitudeDegrees;
 
-    //Serial.print("Lat - "); Serial.println(lat, 7);
-    //Serial.print("Lon - "); Serial.println(lon, 7);
+    Serial.print("Lat - "); Serial.println(lat, 7);
+    Serial.print("Lon - "); Serial.println(lon, 7);
   }
 }
 
@@ -155,7 +166,7 @@ void ReadHeading() {
 
   headingAngle = euler.x();                                  // Grab euler direction output
 
-  headingAngle -= errorHeadingRef;                           // Factors in error in headingAnglefor Tempe.
+  headingAngle += errorHeadingRef;                           // Factors in error in headingAnglefor Tempe.
 
   // Corrects any values which exceed 180 degrees.
   if (headingAngle > 180) headingAngle -= 360;
@@ -280,7 +291,6 @@ void SetCarDirection() {
   if (lidarRight > THRESHOLD || lidarLeft > THRESHOLD) {
     // Lidar has detected an obstacle ahead of the car, must change steering angle
     int diff = lidarRight - lidarLeft; // positive values indicate object on right, negative values indicate object on left
-
     /*
         if (diff < -20) {
           // Far left
@@ -301,7 +311,6 @@ void SetCarDirection() {
     } else {
       steerAngle = 45;
     }
-
   }
 }
 
@@ -317,7 +326,7 @@ void CalculateDistance() {      // Input: GPS data
   float deltaLat = latDst_rad - lat_rad;      // Change in latitude
   float deltaLon = lonDst_rad - lon_rad;      // Change in longitude
 
-  float a = sin(deltaLat / 2) * sin(deltaLat / 2) + cos(lat_rad) * cos(latDst_rad) * sin(deltaLon / 2) * sin(deltaLon / 2);
+  float a = sin(deltaLat/2) * sin(deltaLat/2) + cos(lat_rad) * cos(latDst_rad) * sin(deltaLon/2) * sin(deltaLon/2);
   float c = 2 * atan2(sqrt(a), sqrt(1 - a));
 
   distance = r * c;                           // in meters
@@ -352,8 +361,8 @@ void ReadLidar() {    // Output: Lidar Data
     lidarRight = Wire.read();
   }
 
-  //Serial.print("Left  - "); Serial.println(lidarLeft);
-  //Serial.print("Right - "); Serial.println(lidarRight);
+  Serial.print("Left  - "); Serial.println(lidarLeft);
+  Serial.print("Right - "); Serial.println(lidarRight);
 }
 
 void Actuate() {
@@ -362,7 +371,7 @@ void Actuate() {
       carSpeed = 0;
       shouldActuate = false;
     } else {
-      carSpeed = 25;
+      carSpeed = 18;
     }
     analogWrite(carSpeedPin, carSpeed);
     myservo.write(steerAngle);
@@ -370,7 +379,7 @@ void Actuate() {
 }
 
 ISR(TIMER1_OVF_vect) {        // function will be call every 0.1 seconds
-  sei();                  // reset interrupt flag
+  sei();                      // reset interrupt flag
   TCNT1  = 59016;
   ReadHeading();
   CalculateBearing();
@@ -380,10 +389,15 @@ ISR(TIMER1_OVF_vect) {        // function will be call every 0.1 seconds
   Actuate();
 }
 
+void printToLCD() {
+  lcd.print("H:"); lcd.print(headingAngle, 7);
+  lcd.setCursor(0, 1);
+  lcd.print("D:"); lcd.print(distance, 7);
+}
+
 void loop() {
-  //  lcd.clear();      // clear lcd
-  //  // Pring data to LCD in order to debug your program!
-  //  printHeadingOnLCD();
-  //  printObstacleOnLCD();
-  //delay(500);
+  lcd.clear();
+  printToLCD();
+  ReadLidar();
+  delay(1000);
 }
