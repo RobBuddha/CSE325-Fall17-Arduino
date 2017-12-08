@@ -1,3 +1,11 @@
+/* File: MegaI2C.ino
+ *  
+ *  Description: Program runs the car...
+ *  
+ *  Authors:  Erin Hintze, Robert Alimov
+ *  Group:    Group 6
+ */
+
 #include <Adafruit_BNO055.h>
 #include <FlexiTimer2.h>
 #include <Adafruit_Sensor.h>
@@ -9,7 +17,8 @@
 #include "DFR_Key.h"
 
 #define GPSECHO false                             // echo GPS Sentence 
-#define THRESHOLD 10                              // threshold for Obstacle avoidance (number of obstacles)
+#define THRESHOLD 3                              // threshold for Obstacle avoidance (number of obstacles)
+#define NEARBY_THRESHOLD 2
 
 Adafruit_GPS GPS(&Serial2);                       // define GPS object DO NOT USE Serial0
 DFR_Key keypad;                                   // define keypad object
@@ -21,6 +30,7 @@ LiquidCrystal lcd( 8, 9, 4, 5, 6, 7);             // define lcd pins use these d
 // Global variables that change across functions
 int localkey = 0;                                 // variable for reading lcd button values
 boolean usingInterrupt = false;                   // interrupt variable
+uint8_t inc = 0;                                  
 
 // Heading variables
 float errorHeadingRef = -10.3;                     // heading error for Tempe
@@ -37,8 +47,15 @@ int stopDistance = 5;                             // distance from destination a
 boolean shouldActuate = false;                    // determines if car should keep actuating or not
 
 // Lidar variables
-uint8_t lidarRight;                               // number of points detected by lidar which are to the RIGHT of the car
-uint8_t lidarLeft;                                // number of points detected by lidar which are to the LEFT of the car
+uint8_t lidarLeft0;                               // variable for detected points on left hand side within 2.5 meters (331-359)
+uint8_t lidarLeft1;                               // variable for detected points on left hand side within 2.5 meters (301-330)
+uint8_t lidarLeft2;                               // variable for detected points on left hand side within 2.5 meters (271-300)
+
+uint8_t lidarRight0;                              // variable for detected points on right hand side within 2.5 meters (0-29 degrees)
+uint8_t lidarRight1;                              // variable for detected points on right hand side within 2.5 meters (30-59 degrees)
+uint8_t lidarRight2;                              // variable for detected points on right hand side within 2.5 meters (60-89 degrees)
+
+uint8_t lidarNearby;                              // variable for detected points within 6 meters
 
 // GPS variables
 float lat;                                        // GPS latitude in degree decimal * 100000 | we multiply decimal degree by 100000 to convert it to meter  https://en.wikipedia.org/wiki/Decimal_degrees
@@ -49,7 +66,7 @@ float lonDestination;                             // define an initial reference
 void setup() {
   myservo.attach(44);     // servo is connected to pin 44     (All pins are used by LCD except 2. Pin 2 is used for DC motor)
   lcd.begin( 16, 2 );     // LCD type is 16x2 (col & row)
-  Serial.begin(9600);     // serial for monitoring
+  //Serial.begin(9600);     // serial for monitoring
 
   GPS.begin(9600);
   GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);   // ask GPS to send RMC & GGA sentences
@@ -58,7 +75,7 @@ void setup() {
   useInterrupt(true);                           // use interrupt for reading chars of GPS sentences (From Serial Port)
 
   if (!bno.begin(Adafruit_BNO055::OPERATION_MODE_NDOF)) {
-    Serial.print("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
+    //Serial.print("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
     while (1);
   }
   byte c_data[22] = {0, 0, 0, 0, 0, 0, 34, 0, 89, 0, 133, 0, 255, 255, 0, 0, 1, 0, 232, 3, 29, 3};                        // Use your CALIBRATION DATA
@@ -79,13 +96,13 @@ void setup() {
   TCCR4B |= (1 << CS42);    // 256 prescaler
   TIMSK4 |= (1 << TOIE4);   // enable timer compare interrupt
   interrupts();             // enable intrrupt flag again
-/*
+
   while (lat == 0 || lon == 0) { // No GPS signal yet
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("No GPS Signal");                   // Alert user that GPS signal has not yet been obtained.
     delay(1000);
-  }*/
+  }
 
   // Setting the reference (Lat and Lon) //
   localkey = 0;
@@ -101,8 +118,8 @@ void setup() {
   GPSRead();
   latDestination = lat;     // saving the destination point
   lonDestination = lon;     // saving the destination point
-  Serial.print("Lat Destination - "); Serial.println(latDestination, 7);
-  Serial.print("Lon Destination - "); Serial.println(lonDestination, 7);
+  //Serial.print("Lat Destination - "); Serial.println(latDestination, 7);
+  //Serial.print("Lon Destination - "); Serial.println(lonDestination, 7);
 
   // Waiting to activate //
   localkey = 0;
@@ -115,7 +132,7 @@ void setup() {
     delay(100);
   }
 
-  shouldActuate = false;
+  shouldActuate = true;
 }
 
 SIGNAL(TIMER0_COMPA_vect) {       // don't change this !!
@@ -141,7 +158,6 @@ ISR(TIMER4_OVF_vect) {  // Timer interrupt for reading GPS and Lidar data (calle
   sei();                // reset interrupt flag
   TCNT4  = 336;         // re-initialize timer value
   GPSRead();            // read GPS data
-  ReadLidar();          // read Lidar data
 }
 
 void GPSRead() {
@@ -154,9 +170,6 @@ void GPSRead() {
   if (GPS.fix) {
     lat = GPS.latitudeDegrees;
     lon = GPS.longitudeDegrees;
-
-    Serial.print("Lat - "); Serial.println(lat, 7);
-    Serial.print("Lon - "); Serial.println(lon, 7);
   }
 }
 
@@ -288,28 +301,131 @@ void SetCarDirection() {
   // Set steering angle (steerAngle) based on lidar data (lidarRight and lidarLeft). If any obstacle is detected by lidar,
   // ignore steering angle and turn left or right based on lidar data.
 
-  if (lidarRight > THRESHOLD || lidarLeft > THRESHOLD) {
-    // Lidar has detected an obstacle ahead of the car, must change steering angle
-    int diff = lidarRight - lidarLeft; // positive values indicate object on right, negative values indicate object on left
-    /*
-        if (diff < -20) {
-          // Far left
-          steerAngle = 110;
-        } else if (diff < 0) {
-          // Center left
-          steerAngle = 135;
-        } else if (diff < 20) {
-          // Center right
-          steerAngle = 45;
+  if (lidarLeft2 > THRESHOLD || lidarLeft1 > THRESHOLD || lidarLeft0 > THRESHOLD || lidarRight0 > THRESHOLD || lidarRight1 > THRESHOLD || lidarRight2 > THRESHOLD) {
+    if (steerAngle < 60) { // 45, 50, 55 -----------------------------
+      
+      if (lidarLeft2 > THRESHOLD) {
+        if (lidarLeft1 > THRESHOLD) {
+          if (lidarLeft0 > THRESHOLD) {
+            steerAngle = 105;
+          } else {
+            steerAngle = 75;
+          }
         } else {
-          // Far right
-          steerAngle = 70;
+          steerAngle = 60;
         }
-    */
-    if (diff < 0) {
-      steerAngle = 135;
-    } else {
-      steerAngle = 45;
+      } else if (lidarLeft1 > THRESHOLD) {
+        steerAngle = 75;
+      }
+      
+    } else if (steerAngle < 80) { // 60, 65, 70, 75 ------------------
+      
+      if (lidarLeft1 > THRESHOLD) {
+        if (lidarLeft0 > THRESHOLD) {
+          if (lidarRight0 > THRESHOLD) {
+            steerAngle = 110;
+          } else {
+            steerAngle = 100;
+          }
+        } else {
+          steerAngle = 90;
+        }
+      } else if (lidarLeft2 > THRESHOLD) {
+        // unchanged
+      } else if (lidarLeft0 > THRESHOLD) {
+        steerAngle = 65;
+      }
+
+    } else if (steerAngle < 101) { // 80, 85, 90, 95, 100 ------------
+
+      if (lidarLeft0 > THRESHOLD) {
+        if (lidarRight0 > THRESHOLD) {
+          if (steerAngle <= 90) {
+            if (lidarLeft1 > THRESHOLD) {
+              if (lidarRight1 > THRESHOLD) {
+                steerAngle = 45;
+              } else {
+                steerAngle = 120;
+              }
+            } else {
+              steerAngle = 65;
+            }
+          } else {
+            if (lidarRight1 > THRESHOLD) {
+              if (lidarRight1 > THRESHOLD) {
+                steerAngle = 135;
+              } else {
+                steerAngle = 60;
+              }
+            } else {
+              steerAngle = 115;
+            }
+          }
+        } else {
+          steerAngle = 100;
+        }
+      } else if (lidarRight0 > THRESHOLD) {
+        if (lidarLeft0 > THRESHOLD) {
+          if (steerAngle >= 90) {
+            if (lidarRight1 > THRESHOLD) {
+              if (lidarLeft1 > THRESHOLD) {
+                steerAngle = 135;
+              } else {
+                steerAngle = 60;
+              }
+            } else {
+              steerAngle = 115;
+            }
+          } else {
+            if (lidarLeft1 > THRESHOLD) {
+              if (lidarRight1 > THRESHOLD) {
+                steerAngle = 45;
+              } else {
+                steerAngle = 120;
+              }
+            } else {
+              steerAngle = 65;
+            }
+          }
+        } else {
+          steerAngle = 80;
+        }
+      }
+      
+    } else if (steerAngle < 121) { // 105, 110, 115, 120 -------------
+
+      if (lidarRight1 > THRESHOLD) {
+        if (lidarRight0 > THRESHOLD) {
+          if (lidarLeft0 > THRESHOLD) {
+            steerAngle = 70;
+          } else {
+            steerAngle = 80;
+          }
+        } else {
+          steerAngle = 90;
+        }
+      } else if (lidarLeft2 > THRESHOLD) {
+        // unchanged
+      } else if (lidarLeft0 > THRESHOLD) {
+        steerAngle = 115;
+      }
+
+    } else { // 125, 130, 135 ----------------------------------------
+
+      if (lidarRight2 > THRESHOLD) {
+        if (lidarRight1 > THRESHOLD) {
+          if (lidarRight0 > THRESHOLD) {
+            steerAngle = 75;
+          } else {
+            steerAngle = 105;
+          }
+        } else {
+          steerAngle = 120;
+        }
+      } else if (lidarRight1 > THRESHOLD) {
+        steerAngle = 105;
+      }
+      
     }
   }
 }
@@ -334,11 +450,18 @@ void CalculateDistance() {      // Input: GPS data
 
 void ReadLidar() {    // Output: Lidar Data
   // read Lidar Data from Nano Board (I2C)
-  // you should request data from Nano and read the number of obstacle (within the range) on your rightside and leftside
-  // Then, you can decide to either do nothing, turn left or turn right based on threshold. For instance, 0 = do nothing, 1= left and 2 = right
 
-  // Request Left Data
-  uint8_t requestType = 1;
+  LidarRequest(0, &lidarLeft2);
+  LidarRequest(1, &lidarLeft1);
+  LidarRequest(2, &lidarLeft0);
+  LidarRequest(3, &lidarRight0);
+  LidarRequest(4, &lidarRight1);
+  LidarRequest(5, &lidarRight2);
+  LidarRequest(6, &lidarNearby);
+}
+
+void LidarRequest(uint8_t requestType, uint8_t* variable) {
+  // Request template for lidar data
   byte request = requestType & 0xFF;
   Wire.beginTransmission(8);
   Wire.write(request);
@@ -346,23 +469,8 @@ void ReadLidar() {    // Output: Lidar Data
 
   Wire.requestFrom(8, 1); // Request 1 byte from nano
   while (Wire.available()) {
-    lidarLeft = Wire.read();
+    *variable = Wire.read();
   }
-
-  //Request Right Data
-  requestType = 2;
-  request = requestType & 0xFF;
-  Wire.beginTransmission(8);
-  Wire.write(request);
-  Wire.endTransmission();
-
-  Wire.requestFrom(8, 1); // Request 1 byte from nano
-  while (Wire.available()) {
-    lidarRight = Wire.read();
-  }
-
-  Serial.print("Left  - "); Serial.println(lidarLeft);
-  Serial.print("Right - "); Serial.println(lidarRight);
 }
 
 void Actuate() {
@@ -371,7 +479,11 @@ void Actuate() {
       carSpeed = 0;
       shouldActuate = false;
     } else {
-      carSpeed = 18;
+      if (lidarNearby > NEARBY_THRESHOLD) {
+        carSpeed = 25;
+      } else {
+        carSpeed = 65;
+      }
     }
     analogWrite(carSpeedPin, carSpeed);
     myservo.write(steerAngle);
@@ -387,6 +499,13 @@ ISR(TIMER1_OVF_vect) {        // function will be call every 0.1 seconds
   SetCarDirection();
   CalculateDistance();
   Actuate();
+
+  if (inc == 3) {
+    inc = 0;
+    ReadLidar();
+  } else {
+    inc++;
+  }
 }
 
 void printToLCD() {
@@ -398,6 +517,5 @@ void printToLCD() {
 void loop() {
   lcd.clear();
   printToLCD();
-  ReadLidar();
   delay(1000);
 }

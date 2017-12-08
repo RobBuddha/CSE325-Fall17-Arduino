@@ -11,14 +11,32 @@
 #include <RPLidar.h>              // Library for communicating with LIDAR
 
 #define RPLIDAR_MOTOR 3           // motor pin for lidar speed control (D3 on Nano Board)
-#define LIDAR_DISTANCE 2000       // Distance threshold to keep value (millimeters)
+#define LIDAR_DISTANCE 2500       // Distance threshold to keep value (millimeters)
+#define LIDAR_MAX_DISTANCE 6000   // Maximum distance Lidar can detect (millimeters)
+#define LIDAR_PERIOD 400
+
+#define ANGLE_LEFT0 330
+#define ANGLE_LEFT1 300
+#define ANGLE_LEFT2 270
+
+#define ANGLE_RIGHT0 30
+#define ANGLE_RIGHT1 60
+#define ANGLE_RIGHT2 90
 
 RPLidar lidar;                    // define lidar as RPLIDAR Object
-uint8_t left  = 0;                // variable for detected points on left hand side
-uint8_t right = 0;                // variable for detected points on right hand side
+
+uint8_t left0  = 0;               // variable for detected points on left hand side within 2.5 meters (331-359)
+uint8_t left1  = 0;               // variable for detected points on left hand side within 2.5 meters (301-330)
+uint8_t left2  = 0;               // variable for detected points on left hand side within 2.5 meters (271-300)
+
+uint8_t right0 = 0;               // variable for detected points on right hand side within 2.5 meters (0-29 degrees)
+uint8_t right1 = 0;               // variable for detected points on right hand side within 2.5 meters (30-59 degrees)
+uint8_t right2 = 0;               // variable for detected points on right hand side within 2.5 meters (60-89 degrees)
+
+uint8_t nearby = 0;               // variable for detected points within 6 meters
+
 unsigned long time = millis();    // time variable for resetting variables
 uint8_t c1;                       // Variable for received byte from the I2C Bus
-int lidarFOV = 40;                // Lidar Field of View Angle (degrees)
 
 /*
  *         LIDAR_DISTANCE
@@ -51,13 +69,28 @@ void receiveEvent(int bytes) {
 
 void requestEvent() {
   // receive message byte as a character
-  // if master's request is right side data, ("1"), send back the left side data
-  // if master's request is left  side data, ("2"), send back the right side data
+  // 0 = left2
+  // 1 = left1
+  // 2 = left0
+  // 3 = right0
+  // 4 = right1
+  // 5 = right2
+  // 6 = nearby
   byte sendArr;
-  if (c1 == 1) {
-    sendArr = left & 0xFF;
+  if (c1 == 0) {
+    sendArr = left2 & 0xFF;
+  } else if (c1 == 1) {
+    sendArr = left1 & 0xFF;
   } else if (c1 == 2) {
-    sendArr = right & 0xFF;
+    sendArr = left0 & 0xFF;
+  } else if (c1 == 3) {
+    sendArr = right0 & 0xFF;
+  } else if (c1 == 4) {
+    sendArr = right1 & 0xFF;
+  } else if (c1 == 5) {
+    sendArr = right2 & 0xFF;
+  } else if (c1 == 6) {
+    sendArr = nearby & 0xFF;
   }
   Wire.write(sendArr);
 }
@@ -75,21 +108,48 @@ void loop() {
       // A new scan is happening, wait for scan to finish
       // If distance or angle were read now, it would be the previous values since they haven't updated yet.
     } else {
-      if (distance > 0 && distance < LIDAR_DISTANCE) {
-        // Need to make sure distance is >0 too. If lidar cannot detect distance, it is stored as -1. These are bad data points.
-        if (angle > (360-(lidarFOV/2))) {
-          left++; // Object on left hand side
-        } else if (angle < (lidarFOV/2)) {
-          right++; // Object on right hand side
-        }
-      }
-    }
+      if (distance > 0) {
+        if (distance < LIDAR_MAX_DISTANCE) {
+          if (distance < LIDAR_DISTANCE) {
+
+            if (angle > ANGLE_LEFT0) {
+              left0++;
+            } else if (angle > ANGLE_LEFT1) {
+              left1++;
+            } else if (angle > ANGLE_LEFT2) {
+              left2++;
+            }
+
+            if (angle < ANGLE_RIGHT0) {
+              right0++;
+            } else if (angle < ANGLE_RIGHT1) {
+              right1++;
+            } else if (angle < ANGLE_RIGHT2) {
+              right2++;
+            }
+            
+          } // distance < LIDAR_DISTANCE
+
+          if (angle > ANGLE_LEFT2 || angle < ANGLE_RIGHT2) {
+            nearby++;
+          }
+        } // distance < LIDAR_MAX_DISTANCE
+      } // distance > 0
+    } // else
 
     unsigned long newTime = millis();
-    if ((newTime-time) >= 1000) {
-      // Reset data values every second
-      left = 0;
-      right = 0;
+    if ((newTime-time) >= LIDAR_PERIOD) {
+      // Reset data values every 200ms
+      left0 = 0;
+      left1 = 0;
+      left2 = 0;
+      
+      right0 = 0;
+      right1 = 0;
+      right2 = 0;
+
+      nearby = 0;
+      
       time = newTime;
     }
   } else {
